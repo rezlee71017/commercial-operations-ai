@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { catalog, rules } from "@/data/catalog";
-import { runWorkflow } from "@/core/run";
 import { proposeWithGemini } from "@/core/llm";
 import { proposeWithMock } from "@/core/mock";
+import { workflowStream } from "@/core/stream";
 
 // Start the server with LLM_MODE=mock to use the keyword test double instead of Gemini.
 const propose = process.env.LLM_MODE === "mock" ? proposeWithMock : proposeWithGemini;
@@ -20,8 +20,12 @@ export async function POST(req: Request) {
     const owned = Array.isArray(rawOwned)
       ? rawOwned.filter((x): x is string => typeof x === "string" && knownIds.has(x))
       : [];
-    const result = await runWorkflow(request, catalog, rules, { propose }, owned);
-    return NextResponse.json(result);
+    return new Response(workflowStream(request, catalog, rules, { propose }, owned), {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+      },
+    });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

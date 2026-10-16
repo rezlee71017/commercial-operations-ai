@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { runWorkflow } from "./run";
 import { parseProposal } from "./llm";
 import { catalog, rules } from "../data/catalog";
+import type { RunEvent } from "./types";
 
 const now = () => "T";
+const steps = (events: RunEvent[]) => events.map((e) => `${e.step}:${e.status}`);
 
 describe("runWorkflow", () => {
   it("goes to awaiting_approval when the proposal passes all rules", async () => {
@@ -12,7 +14,13 @@ describe("runWorkflow", () => {
       propose: async () => ({ items: [{ productId: "phone-a1", qty: 1 }, { productId: "case-a1", qty: 1 }], discountPct: 0 }),
     });
     expect(r.status).toBe("awaiting_approval");
-    expect(r.events.map((e) => e.step)).toEqual(["request_received", "catalog_loaded", "proposal_generated", "policy_checked"]);
+    expect(steps(r.events)).toEqual([
+      "request_received:ok",
+      "catalog_loaded:ok",
+      "proposal_generated:started",
+      "proposal_generated:ok",
+      "policy_checked:ok",
+    ]);
   });
 
   it("blocks a proposal that breaks a rule, even if the 'LLM' asked for it", async () => {
@@ -34,6 +42,27 @@ describe("runWorkflow", () => {
     expect(r.status).toBe("failed");
     expect(r.events.at(-1)).toMatchObject({ step: "proposal_generated", status: "failed" });
     expect(r.events.some((e) => e.step === "policy_checked")).toBe(false);
+  });
+
+  it("reports every event as it is recorded, and 'started' comes before the slow step", async () => {
+    const received: RunEvent[] = [];
+    let seenWhenModelCalled: string[] = [];
+    const r = await runWorkflow(
+      "x",
+      catalog,
+      rules,
+      {
+        now,
+        onEvent: (e) => received.push(e),
+        propose: async () => {
+          seenWhenModelCalled = steps(received);
+          return { items: [{ productId: "case-a1", qty: 1 }], discountPct: 0 };
+        },
+      },
+      ["phone-a1"],
+    );
+    expect(seenWhenModelCalled.at(-1)).toBe("proposal_generated:started");
+    expect(received).toEqual(r.events);
   });
 });
 

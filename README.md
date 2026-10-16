@@ -2,9 +2,11 @@
 
 AI-powered platform for intelligent business workflows, sales optimization, and commercial operations automation.
 
-> **Status: planning.** Nothing below is implemented yet. Each feature is marked
-> `planned`, `in progress`, or `done` in the status table, and a feature is only
-> marked `done` after it has been implemented **and** tested.
+> **Status: early development (updated 2026-10-15).** Implemented and unit-tested:
+> the policy engine, the workflow runner with recorded events, a mock proposer,
+> and customer-owned-product handling. A single Gemini call has been run manually.
+> Everything else is still planned. A feature is only marked `done` after it is
+> implemented **and** tested.
 
 ## What it is
 
@@ -41,11 +43,11 @@ Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
 | # | Capability | Status |
 |---|---|---|
 | 1 | Import demo data (products, inventory, orders, prices) from CSV/JSON; mark records as synthetic or real | planned |
-| 2 | Submit a customer request or select an existing order | planned |
-| 3 | Bundle / quote recommendation with explanations | planned |
-| 4 | Policy engine: stock, compatibility, discount limit, minimum margin | planned |
-| 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | planned |
-| 6 | Live run timeline (steps, tool inputs/outputs, rule results) | planned |
+| 2 | Submit a customer request or select an existing order | partial (request text only; order selection planned) |
+| 3 | Bundle / quote recommendation with explanations | partial (LLM or mock proposer; no recommender or baseline yet) |
+| 4 | Policy engine: stock, compatibility, discount limit, minimum margin | done (unit tested) |
+| 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | partial (one LLM call + policy check; no tool calls yet) |
+| 6 | Live run timeline (steps, tool inputs/outputs, rule results) | in progress (live step events; tool calls not yet) |
 | 7 | Human approval: approve / reject / modify / retry / cancel | planned |
 | 8 | Execution in the demo environment + persisted result | planned |
 | 9 | Audit log of decisions and status transitions | planned |

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { RunResult } from "@/core/run";
+import type { StreamMessage } from "@/core/stream";
+import type { RunEvent } from "@/core/types";
 
 const OWNABLE = [
   { id: "phone-a1", label: "Phone Aria" },
@@ -12,6 +14,7 @@ const OWNABLE = [
 export default function Home() {
   const [request, setRequest] = useState("I just bought the Aria phone. I need a case and a charger.");
   const [owned, setOwned] = useState<string[]>(["phone-a1"]);
+  const [events, setEvents] = useState<RunEvent[]>([]);
   const [result, setResult] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,19 +23,55 @@ export default function Home() {
     setOwned((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   }
 
+  // A finished event replaces the "started" event of the same step; anything else is appended.
+  function addEvent(e: RunEvent) {
+    setEvents((prev) => {
+      const i = prev.findIndex((p) => p.step === e.step && p.status === "started");
+      if (e.status !== "started" && i >= 0) {
+        const copy = [...prev];
+        copy[i] = e;
+        return copy;
+      }
+      return [...prev, e];
+    });
+  }
+
+  function handle(m: StreamMessage) {
+    if (m.type === "event") addEvent(m.event);
+    else if (m.type === "result") setResult(m.result);
+    else setError(m.error);
+  }
+
   async function run() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setEvents([]);
     try {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request, owned }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Request failed");
-      setResult(data as RunResult);
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Request failed");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl = buffer.indexOf("\n");
+        while (nl >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (line) handle(JSON.parse(line) as StreamMessage);
+          nl = buffer.indexOf("\n");
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -63,53 +102,54 @@ export default function Home() {
 
       {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
 
-      {result && (
-        <>
-          <h2>Status: {result.status}</h2>
+      {(loading || result) && <h2>Status: {result ? result.status : "running..."}</h2>}
 
+      {events.length > 0 && (
+        <>
           <h3>Events</h3>
           <ol>
-            {result.events.map((e, i) => (
+            {events.map((e, i) => (
               <li key={i}>
-                <b>{e.step}</b> {e.status === "ok" ? "OK" : "FAILED"} <small>({e.at})</small>
+                <b>{e.step}</b> {e.status === "started" ? "RUNNING..." : e.status === "ok" ? "OK" : "FAILED"}{" "}
+                <small>({e.at})</small>
                 {e.status === "failed" && (
                   <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(e.data, null, 2)}</pre>
                 )}
               </li>
             ))}
           </ol>
+        </>
+      )}
 
-          {result.proposal && (
-            <>
-              <h3>Proposal</h3>
-              <ul>
-                {result.proposal.items.map((it, i) => (
-                  <li key={i}>
-                    {it.productId} x {it.qty}
-                  </li>
-                ))}
-              </ul>
-              <p>Discount: {result.proposal.discountPct}%</p>
-              {result.proposal.explanation && <p>{result.proposal.explanation}</p>}
-            </>
-          )}
+      {result?.proposal && (
+        <>
+          <h3>Proposal</h3>
+          <ul>
+            {result.proposal.items.map((it, i) => (
+              <li key={i}>
+                {it.productId} x {it.qty}
+              </li>
+            ))}
+          </ul>
+          <p>Discount: {result.proposal.discountPct}%</p>
+          {result.proposal.explanation && <p>{result.proposal.explanation}</p>}
+        </>
+      )}
 
-          {result.evaluation && (
-            <>
-              <h3>Policy checks</h3>
-              <ul>
-                {result.evaluation.results.map((r) => (
-                  <li key={r.rule}>
-                    {r.passed ? "PASS" : "FAIL"} {r.rule}: {r.detail}
-                  </li>
-                ))}
-              </ul>
-              <p>
-                Subtotal {result.evaluation.subtotal} | Total {result.evaluation.total} | Margin{" "}
-                {result.evaluation.marginPct}%
-              </p>
-            </>
-          )}
+      {result?.evaluation && (
+        <>
+          <h3>Policy checks</h3>
+          <ul>
+            {result.evaluation.results.map((r) => (
+              <li key={r.rule}>
+                {r.passed ? "PASS" : "FAIL"} {r.rule}: {r.detail}
+              </li>
+            ))}
+          </ul>
+          <p>
+            Subtotal {result.evaluation.subtotal} | Total {result.evaluation.total} | Margin{" "}
+            {result.evaluation.marginPct}%
+          </p>
         </>
       )}
     </main>

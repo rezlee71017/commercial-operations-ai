@@ -33,7 +33,7 @@ export type Evaluation = {
 
 export type RunEvent = {
   step: string;
-  status: "ok" | "failed";
+  status: "started" | "ok" | "failed";
   at: string; // ISO time when the step FINISHED
   data?: unknown;
 };
