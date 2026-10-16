@@ -112,8 +112,11 @@ export default function Home() {
               <li key={i}>
                 <b>{e.step}</b> {e.status === "started" ? "RUNNING..." : e.status === "ok" ? "OK" : "FAILED"}{" "}
                 <small>({e.at})</small>
-                {e.status === "failed" && (
-                  <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(e.data, null, 2)}</pre>
+                {e.data !== undefined && (e.status === "failed" || e.step.startsWith("tool:")) && (
+                  <details open={e.status === "failed"}>
+                    <summary>details</summary>
+                    <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(e.data, null, 2)}</pre>
+                  </details>
                 )}
               </li>
             ))}

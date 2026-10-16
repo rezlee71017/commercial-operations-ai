@@ -1,8 +1,13 @@
 import { evaluateProposal } from "./policy";
 import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
 
+export type ProposeCtx = {
+  log: (step: string, status: RunEvent["status"], data?: unknown) => void;
+  rules: Rules;
+};
+
 export type Deps = {
-  propose: (request: string, catalog: Product[], owned: string[]) => Promise<Proposal>;
+  propose: (request: string, catalog: Product[], owned: string[], ctx: ProposeCtx) => Promise<Proposal>;
   now?: () => string;
   // Called for every event the moment it is recorded (used for live streaming).
   onEvent?: (event: RunEvent) => void;
@@ -37,7 +42,7 @@ export async function runWorkflow(
   let proposal: Proposal;
   log("proposal_generated", "started");
   try {
-    proposal = await deps.propose(request, catalog, owned);
+    proposal = await deps.propose(request, catalog, owned, { log, rules });
     log("proposal_generated", "ok", proposal);
   } catch (e) {
     log("proposal_generated", "failed", { error: e instanceof Error ? e.message : String(e) });

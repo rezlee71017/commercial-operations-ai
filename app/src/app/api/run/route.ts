@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { catalog, rules } from "@/data/catalog";
 import { proposeWithGemini } from "@/core/llm";
 import { proposeWithMock } from "@/core/mock";
+import { makeAgentPropose } from "@/core/agent-propose";
 import { workflowStream } from "@/core/stream";
 
-// Start the server with LLM_MODE=mock to use the keyword test double instead of Gemini.
-const propose = process.env.LLM_MODE === "mock" ? proposeWithMock : proposeWithGemini;
+// LLM_MODE=mock   -> keyword test double instead of Gemini
+// AGENT_MODE=tools -> tool-using agent (every tool call is shown as an event)
+const mock = process.env.LLM_MODE === "mock";
+const propose =
+  process.env.AGENT_MODE === "tools" ? makeAgentPropose(mock) : mock ? proposeWithMock : proposeWithGemini;
 const knownIds = new Set(catalog.map((p) => p.id));
 
 export async function POST(req: Request) {

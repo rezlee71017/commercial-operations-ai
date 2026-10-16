@@ -46,7 +46,7 @@ Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
 | 2 | Submit a customer request or select an existing order | partial (request text only; order selection planned) |
 | 3 | Bundle / quote recommendation with explanations | partial (LLM or mock proposer; no recommender or baseline yet) |
 | 4 | Policy engine: stock, compatibility, discount limit, minimum margin | done (unit tested) |
-| 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | partial (one LLM call + policy check; no tool calls yet) |
+| 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | in progress (tool-using agent tested with a scripted model and a mock; not yet verified against live Gemini) |
 | 6 | Live run timeline (steps, tool inputs/outputs, rule results) | in progress (live step events; tool calls not yet) |
 | 7 | Human approval: approve / reject / modify / retry / cancel | planned |
 | 8 | Execution in the demo environment + persisted result | planned |
