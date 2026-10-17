@@ -23,16 +23,14 @@ export default function Home() {
     setOwned((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   }
 
-  // A finished event replaces the "started" event of the same step; anything else is appended.
+  // When a step finishes, its "started" line is removed and the finished event is appended,
+  // so the list shows events in the order they really completed.
   function addEvent(e: RunEvent) {
     setEvents((prev) => {
+      if (e.status === "started") return [...prev, e];
       const i = prev.findIndex((p) => p.step === e.step && p.status === "started");
-      if (e.status !== "started" && i >= 0) {
-        const copy = [...prev];
-        copy[i] = e;
-        return copy;
-      }
-      return [...prev, e];
+      const rest = i >= 0 ? prev.filter((_, idx) => idx !== i) : prev;
+      return [...rest, e];
     });
   }
 
