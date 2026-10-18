@@ -23,7 +23,13 @@ export async function proposeWithGemini(
   const model = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
 
   // We do NOT send cost to the model.
-  const products = catalog.map(({ id, name, category, price, stock }) => ({ id, name, category, price, stock }));
+  const products = catalog.map(({ id, name, category, priceCents, stock }) => ({
+    id,
+    name,
+    category,
+    price: priceCents / 100,
+    stock,
+  }));
   const system = [
     "You are a sales assistant for an electronics store.",
     "Build a bundle for the customer using ONLY products from the catalog below, referenced by id.",

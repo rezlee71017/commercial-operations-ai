@@ -2,8 +2,8 @@ export type Product = {
   id: string;
   name: string;
   category: string;
-  price: number; // selling price
-  cost: number; // our purchase cost (never sent to the LLM)
+  priceCents: number; // selling price, integer cents
+  costCents: number; // our purchase cost, integer cents (never sent to the LLM)
   stock: number;
   // ids of main products this item works with. Empty/undefined = no restriction.
   compatibleWith?: string[];
@@ -24,9 +24,9 @@ export type RuleResult = { rule: string; passed: boolean; detail: string };
 
 export type Evaluation = {
   approvable: boolean;
-  subtotal: number;
-  total: number;
-  cost: number;
+  subtotalCents: number;
+  totalCents: number;
+  costCents: number;
   marginPct: number;
   results: RuleResult[];
 };
@@ -34,6 +34,6 @@ export type Evaluation = {
 export type RunEvent = {
   step: string;
   status: "started" | "ok" | "failed";
-  at: string; // ISO time when the step FINISHED
+  at: string; // ISO time when the event was recorded
   data?: unknown;
 };

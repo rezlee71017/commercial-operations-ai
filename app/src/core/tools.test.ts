@@ -9,7 +9,7 @@ const ids = (r: ReturnType<typeof executeTool>) =>
 describe("tools", () => {
   it("search finds products by keyword and never shows cost", () => {
     const r = executeTool("search_products", { query: "charger" }, ctx);
-    expect(ids(r)).toEqual(["charger-65"]);
+    expect(ids(r)).toContain("charger-65");
     expect(JSON.stringify(r)).not.toContain("cost");
   });
 

@@ -7,17 +7,18 @@ const failed = (e: ReturnType<typeof evaluateProposal>) =>
   e.results.filter((r) => !r.passed).map((r) => r.rule);
 
 describe("policy engine", () => {
-  it("approves a valid bundle and computes the numbers itself", () => {
+  it("approves a valid bundle and computes the numbers itself (integer cents)", () => {
     const e = evaluateProposal(
       { items: [{ productId: "phone-a1", qty: 1 }, { productId: "case-a1", qty: 1 }, { productId: "charger-65", qty: 1 }], discountPct: 5 },
       catalog,
       rules,
     );
     expect(e.approvable).toBe(true);
-    expect(e.subtotal).toBe(655);
-    expect(e.total).toBe(622.25);
-    expect(e.cost).toBe(471);
+    expect(e.subtotalCents).toBe(65500);
+    expect(e.totalCents).toBe(62225);
+    expect(e.costCents).toBe(47100);
     expect(e.marginPct).toBe(24.31);
+    expect(Number.isInteger(e.totalCents)).toBe(true);
   });
 
   it("rejects an out-of-stock product", () => {
@@ -63,10 +64,20 @@ describe("policy engine", () => {
   });
 
   it("accepts a margin exactly equal to the minimum (boundary)", () => {
-    const tiny: Product[] = [{ id: "x", name: "X", category: "t", price: 100, cost: 80, stock: 5, isSynthetic: true }];
+    const tiny: Product[] = [
+      { id: "x", name: "X", category: "t", priceCents: 10000, costCents: 8000, stock: 5, isSynthetic: true },
+    ];
     const e = evaluateProposal({ items: [{ productId: "x", qty: 1 }], discountPct: 0 }, tiny, rules);
     expect(e.marginPct).toBe(20);
     expect(e.approvable).toBe(true);
+  });
+
+  it("rejects a margin one cent below the minimum", () => {
+    const tiny: Product[] = [
+      { id: "x", name: "X", category: "t", priceCents: 10000, costCents: 8001, stock: 5, isSynthetic: true },
+    ];
+    const e = evaluateProposal({ items: [{ productId: "x", qty: 1 }], discountPct: 0 }, tiny, rules);
+    expect(failed(e)).toEqual(["min_margin"]);
   });
 
   it("rejects incompatible accessories", () => {

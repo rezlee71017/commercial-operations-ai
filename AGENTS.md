@@ -14,6 +14,7 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 4. Progress shown in the UI must come from real recorded events. Never fake steps.
 5. Every demo record is marked `isSynthetic: true`. Do not present synthetic results as real-world evidence.
 6. Never commit secrets (.env, API keys). Use `.env.local` and keep `.env.example` updated.
+7. Money is stored and calculated as integer cents. Floats are only for display.
 
 ## Working style
 - One task = one GitHub Issue = one branch. Keep diffs small; do not touch unrelated files.

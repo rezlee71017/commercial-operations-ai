@@ -90,7 +90,7 @@ const publicView = (p: Product) => ({
   id: p.id,
   name: p.name,
   category: p.category,
-  price: p.price,
+  price: p.priceCents / 100, // dollars, easier for the model to read
   stock: p.stock,
   compatibleWith: p.compatibleWith ?? [],
 });
@@ -141,7 +141,13 @@ export function executeTool(name: string, rawArgs: unknown, ctx: ToolContext): T
       const e = evaluateProposal({ items: a.items, discountPct: a.discountPct }, ctx.catalog, ctx.rules, ctx.owned);
       return {
         ok: true,
-        result: { approvable: e.approvable, subtotal: e.subtotal, total: e.total, marginPct: e.marginPct, rules: e.results },
+        result: {
+          approvable: e.approvable,
+          subtotal: e.subtotalCents / 100,
+          total: e.totalCents / 100,
+          marginPct: e.marginPct,
+          rules: e.results,
+        },
       };
     }
     case "submit_bundle": {

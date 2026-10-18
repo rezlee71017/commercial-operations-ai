@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { formatCents } from "@/core/money"
 import type { RunResult } from "@/core/run"
 import type { StreamMessage } from "@/core/stream"
 import type { RunEvent } from "@/core/types"
@@ -215,8 +216,8 @@ export default function WorkflowPage() {
               <div className="grid gap-3 sm:grid-cols-4">
                 {[
                   ["Discount", `${proposal.discountPct}%`],
-                  ["Subtotal", String(evaluation.subtotal)],
-                  ["Total", String(evaluation.total)],
+                  ["Subtotal", formatCents(evaluation.subtotalCents)],
+                  ["Total", formatCents(evaluation.totalCents)],
                   ["Margin", `${evaluation.marginPct}%`],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-md border p-3">

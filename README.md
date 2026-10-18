@@ -42,7 +42,7 @@ Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
 
 | # | Capability | Status |
 |---|---|---|
-| 1 | Import demo data (products, inventory, orders, prices) from CSV/JSON; mark records as synthetic or real | planned |
+| 1 | Import demo data (products, inventory, orders, prices) from CSV/JSON; mark records as synthetic or real | partial (synthetic catalog and rules in a Postgres-compatible database; CSV/JSON import planned) |
 | 2 | Submit a customer request or select an existing order | partial (request text only; order selection planned) |
 | 3 | Bundle / quote recommendation with explanations | partial (LLM or mock proposer; no recommender or baseline yet) |
 | 4 | Policy engine: stock, compatibility, discount limit, minimum margin | done (unit tested) |

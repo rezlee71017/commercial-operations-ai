@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   },
   turbopack: {},
 
+  // The embedded database must be loaded by Node, not bundled
+  serverExternalPackages: ["@electric-sql/pglite"],
+
   // Image optimization
   images: {
     remotePatterns: [
@@ -49,7 +52,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/home',
-        destination: '/dashboard',
+        destination: '/workflow',
         permanent: true,
       },
     ];

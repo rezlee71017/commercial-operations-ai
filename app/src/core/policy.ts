@@ -1,7 +1,5 @@
 import type { Evaluation, Product, Proposal, RuleResult, Rules } from "./types";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
 export function evaluateProposal(
   proposal: Proposal,
   catalog: Product[],
@@ -73,22 +71,26 @@ export function evaluateProposal(
     discountOk ? "ok" : `Discount ${d}% must be between 0 and ${rules.maxDiscountPct}%`,
   );
 
-  // Money math: ALWAYS computed here from catalog data, never taken from the LLM
-  let subtotal = 0;
-  let cost = 0;
+  // Money math: ALWAYS computed here from catalog data, in integer cents. Never taken from the LLM.
+  let subtotalCents = 0;
+  let costCents = 0;
   for (const [id, qty] of qtyById) {
     const p = byId.get(id);
     if (p) {
-      subtotal += p.price * qty;
-      cost += p.cost * qty;
+      subtotalCents += p.priceCents * qty;
+      costCents += p.costCents * qty;
     }
   }
   const safeDiscount = Number.isFinite(d) ? d : 0;
-  const total = subtotal * (1 - safeDiscount / 100);
-  const marginPct = total > 0 ? round2(((total - cost) / total) * 100) : 0;
+  const totalCents = Math.round((subtotalCents * (100 - safeDiscount)) / 100);
+
+  // Margin in basis points (1/100 of a percent), compared as integers
+  const marginBps = totalCents > 0 ? Math.round(((totalCents - costCents) * 10000) / totalCents) : 0;
+  const marginPct = marginBps / 100;
+  const minBps = Math.round(rules.minMarginPct * 100);
 
   // Rule: minimum profit margin
-  const marginOk = total > 0 && marginPct >= rules.minMarginPct;
+  const marginOk = totalCents > 0 && marginBps >= minBps;
   add(
     "min_margin",
     marginOk,
@@ -97,9 +99,9 @@ export function evaluateProposal(
 
   return {
     approvable: results.every((r) => r.passed),
-    subtotal: round2(subtotal),
-    total: round2(total),
-    cost: round2(cost),
+    subtotalCents,
+    totalCents,
+    costCents,
     marginPct,
     results,
   };
