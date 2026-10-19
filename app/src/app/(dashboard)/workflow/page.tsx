@@ -1,19 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { collapseEvents } from "@/core/events"
 import { formatCents } from "@/core/money"
-import type { RunResult } from "@/core/run"
 import type { StreamMessage } from "@/core/stream"
-import type { RunEvent } from "@/core/types"
+import type { Evaluation, Proposal, RunEvent } from "@/core/types"
 
 const OWNABLE = [
   { id: "phone-a1", label: "Phone Aria" },
@@ -21,11 +22,32 @@ const OWNABLE = [
   { id: "laptop-l1", label: "Laptop Lume" },
 ]
 
-const STATUS_LABEL: Record<RunResult["status"], string> = {
+const STATUS_LABEL: Record<string, string> = {
+  running: "Running...",
   awaiting_approval: "Awaiting approval",
   rejected_by_policy: "Rejected by policy",
   failed: "Failed",
+  executed: "Executed",
+  rejected: "Rejected by merchant",
+  blocked: "Blocked at approval",
 }
+const GOOD = new Set(["awaiting_approval", "executed"])
+
+type RunSummary = { id: string; request: string; status: string; mode: string; createdAt: string }
+type OrderView = { id: string; totalCents: number; items: { productId: string; qty: number }[] }
+type View = {
+  id: string | null
+  status: string
+  proposal: Proposal | null
+  evaluation: Evaluation | null
+  order: OrderView | null
+}
+type RunDetail = {
+  run: { id: string; status: string; proposal: Proposal | null; evaluation: Evaluation | null }
+  events: RunEvent[]
+  order: OrderView | null
+}
+type Decision = { ok: true; status: string; orderId?: string; totalCents?: number } | { ok: false; message: string; reasons?: { rule: string; detail: string }[] }
 
 function stepLabel(step: string) {
   const text = step.replace(/^tool:/, "").replaceAll("_", " ")
@@ -38,42 +60,69 @@ function EventIcon({ status }: { status: RunEvent["status"] }) {
   return <XCircle className="size-4 text-destructive" />
 }
 
-const hasDetails = (e: RunEvent) =>
-  e.data !== undefined && (e.status === "failed" || e.step.startsWith("tool:"))
+const hasDetails = (e: RunEvent) => e.data !== undefined && (e.status === "failed" || e.step.startsWith("tool:"))
 
 export default function WorkflowPage() {
   const [request, setRequest] = useState("I just bought the Aria phone. I need a case and a charger.")
   const [owned, setOwned] = useState<string[]>(["phone-a1"])
   const [events, setEvents] = useState<RunEvent[]>([])
-  const [result, setResult] = useState<RunResult | null>(null)
+  const [view, setView] = useState<View | null>(null)
+  const [history, setHistory] = useState<RunSummary[]>([])
+  const [note, setNote] = useState("")
+  const [decision, setDecision] = useState<Decision | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [deciding, setDeciding] = useState(false)
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/runs")
+      if (res.ok) setHistory((await res.json()) as RunSummary[])
+    } catch {
+      /* history is optional */
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
 
   function toggle(id: string) {
     setOwned((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]))
   }
 
-  // When a step finishes, its "started" line is removed and the finished event is appended,
-  // so the list shows events in the order they really completed.
-  function addEvent(e: RunEvent) {
-    setEvents((prev) => {
-      if (e.status === "started") return [...prev, e]
-      const i = prev.findIndex((p) => p.step === e.step && p.status === "started")
-      const rest = i >= 0 ? prev.filter((_, idx) => idx !== i) : prev
-      return [...rest, e]
-    })
+  function handle(m: StreamMessage) {
+    if (m.type === "run") setView({ id: m.runId, status: "running", proposal: null, evaluation: null, order: null })
+    else if (m.type === "event") setEvents((prev) => collapseEvents([...prev, m.event]))
+    else if (m.type === "result") {
+      setView((v) => ({
+        id: v?.id ?? null,
+        status: m.result.status,
+        proposal: m.result.proposal,
+        evaluation: m.result.evaluation,
+        order: null,
+      }))
+    } else setError(m.error)
   }
 
-  function handle(m: StreamMessage) {
-    if (m.type === "event") addEvent(m.event)
-    else if (m.type === "result") setResult(m.result)
-    else setError(m.error)
+  async function openRun(id: string) {
+    setError(null)
+    setDecision(null)
+    const res = await fetch(`/api/runs/${id}`)
+    if (!res.ok) {
+      setError("Could not load that run")
+      return
+    }
+    const d = (await res.json()) as RunDetail
+    setEvents(collapseEvents(d.events))
+    setView({ id: d.run.id, status: d.run.status, proposal: d.run.proposal, evaluation: d.run.evaluation, order: d.order })
   }
 
   async function run() {
     setLoading(true)
     setError(null)
-    setResult(null)
+    setView(null)
+    setDecision(null)
     setEvents([])
     try {
       const res = await fetch("/api/run", {
@@ -104,11 +153,32 @@ export default function WorkflowPage() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
+      void loadHistory()
     }
   }
 
-  const proposal = result?.proposal
-  const evaluation = result?.evaluation
+  async function decide(kind: "approve" | "reject") {
+    if (!view?.id) return
+    setDeciding(true)
+    setDecision(null)
+    try {
+      const res = await fetch(`/api/runs/${view.id}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: kind, note: note.trim() || undefined }),
+      })
+      setDecision((await res.json()) as Decision)
+      await openRun(view.id) // show what is really stored now
+      void loadHistory()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDeciding(false)
+    }
+  }
+
+  const proposal = view?.proposal
+  const evaluation = view?.evaluation
 
   return (
     <div className="space-y-6 px-4 lg:px-6">
@@ -118,7 +188,7 @@ export default function WorkflowPage() {
           <Badge variant="outline">demo data</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Describe a customer request. Every step below is recorded as it really happens.
+          Describe a customer request. Every step below is recorded as it really happens, and saved.
         </p>
       </div>
 
@@ -153,9 +223,9 @@ export default function WorkflowPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle>Live events</CardTitle>
-              {(loading || result) && (
-                <Badge variant={result && result.status !== "awaiting_approval" ? "destructive" : "secondary"}>
-                  {result ? STATUS_LABEL[result.status] : "Running..."}
+              {view && (
+                <Badge variant={GOOD.has(view.status) || view.status === "running" ? "secondary" : "destructive"}>
+                  {STATUS_LABEL[view.status] ?? view.status}
                 </Badge>
               )}
             </div>
@@ -250,6 +320,96 @@ export default function WorkflowPage() {
           </CardContent>
         </Card>
       )}
+
+      {view?.id && view.status === "awaiting_approval" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your decision</CardTitle>
+            <CardDescription>
+              Approving re-checks the rules against the current stock, then removes the stock and creates the order, all
+              or nothing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+            <div className="flex gap-2">
+              <Button onClick={() => decide("approve")} disabled={deciding}>
+                {deciding && <Loader2 className="size-4 animate-spin" />}
+                Approve and execute
+              </Button>
+              <Button variant="outline" onClick={() => decide("reject")} disabled={deciding}>
+                Reject
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {decision && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{decision.ok ? "Done" : "Not executed"}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            {decision.ok && decision.status === "executed" && (
+              <p>
+                Order <span className="font-mono">{decision.orderId}</span> created for {formatCents(decision.totalCents ?? 0)}. Stock
+                was updated: see Inventory and Orders.
+              </p>
+            )}
+            {decision.ok && decision.status === "rejected" && <p>The proposal was rejected. Nothing changed.</p>}
+            {!decision.ok && (
+              <>
+                <p>{decision.message}. Nothing was changed.</p>
+                {decision.reasons?.map((r) => (
+                  <p key={r.rule} className="text-muted-foreground">
+                    {r.rule}: {r.detail}
+                  </p>
+                ))}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {view?.order && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Order</CardTitle>
+            <CardDescription>
+              <span className="font-mono">{view.order.id}</span> · {formatCents(view.order.totalCents)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">{view.order.items.map((i) => `${i.productId} x${i.qty}`).join(", ")}</CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent runs</CardTitle>
+          <CardDescription>Saved in the database. Click one to open it again, also after a refresh.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {history.map((h) => (
+                <li key={h.id}>
+                  <button
+                    onClick={() => openRun(h.id)}
+                    className="flex w-full items-center gap-2 rounded-md border p-2 text-left text-sm hover:bg-muted"
+                  >
+                    <Badge variant={GOOD.has(h.status) ? "secondary" : "outline"}>{STATUS_LABEL[h.status] ?? h.status}</Badge>
+                    <span className="truncate">{h.request}</span>
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{h.mode}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

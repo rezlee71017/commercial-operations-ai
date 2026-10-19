@@ -5,12 +5,14 @@ import { makeAgentPropose } from "@/core/agent-propose";
 import { workflowStream } from "@/core/stream";
 import { getDb } from "@/db/client";
 import { loadCatalog, loadRules } from "@/db/repo";
+import { createRun, createRunRecorder } from "@/db/runs";
 
 // LLM_MODE=mock   -> keyword test double instead of Gemini
 // AGENT_MODE=tools -> tool-using agent (every tool call is shown as an event)
 const mock = process.env.LLM_MODE === "mock";
-const propose =
-  process.env.AGENT_MODE === "tools" ? makeAgentPropose(mock) : mock ? proposeWithMock : proposeWithGemini;
+const agent = process.env.AGENT_MODE === "tools";
+const propose = agent ? makeAgentPropose(mock) : mock ? proposeWithMock : proposeWithGemini;
+const mode = `${mock ? "mock" : "gemini"}-${agent ? "tools" : "single"}`;
 
 export async function POST(req: Request) {
   try {
@@ -30,7 +32,11 @@ export async function POST(req: Request) {
     const owned = Array.isArray(rawOwned)
       ? rawOwned.filter((x): x is string => typeof x === "string" && knownIds.has(x))
       : [];
-    return new Response(workflowStream(request, catalog, rules, { propose }, owned), {
+
+    // Every run is stored, with every event, so the history survives a page refresh.
+    const runId = await createRun(db, { request, owned, mode });
+    const sink = createRunRecorder(db, runId);
+    return new Response(workflowStream(request, catalog, rules, { propose }, owned, { runId, sink }), {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",

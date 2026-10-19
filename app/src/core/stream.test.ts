@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { workflowStream, type StreamMessage } from "./stream";
+import { workflowStream, type RunSink, type StreamMessage } from "./stream";
+import type { RunEvent } from "./types";
 import { catalog, rules } from "../data/catalog";
 
 const now = () => "T";
@@ -88,5 +89,70 @@ describe("workflowStream", () => {
     const last = parse(text).at(-1);
     expect(last?.type).toBe("result");
     if (last?.type === "result") expect(last.result.status).toBe("failed");
+  });
+});
+
+describe("workflowStream with a recorder", () => {
+  it("records every event and saves the result BEFORE the browser receives it", async () => {
+    const log: string[] = [];
+    const sink: RunSink = {
+      event: (e: RunEvent) => void log.push(`event:${e.step}:${e.status}`),
+      finish: async (r) => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        log.push(`saved:${r.status}`);
+      },
+      fail: async () => void log.push("failed"),
+    };
+    const stream = workflowStream(
+      "x",
+      catalog,
+      rules,
+      { now, propose: async () => ({ items: [{ productId: "mouse-m1", qty: 1 }], discountPct: 0 }) },
+      [],
+      { runId: "run-1", sink },
+    );
+    const reader = stream.getReader();
+    let text = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value);
+      if (text.includes('"type":"result"')) log.push("browser-got-result");
+    }
+    const msgs = parse(text);
+    expect(msgs[0]).toEqual({ type: "run", runId: "run-1" });
+    expect(log.indexOf("saved:awaiting_approval")).toBeGreaterThan(-1);
+    expect(log.indexOf("saved:awaiting_approval")).toBeLessThan(log.indexOf("browser-got-result"));
+    expect(log.filter((l) => l.startsWith("event:")).length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("keeps recording when the browser disconnects", async () => {
+    let saved = false;
+    const sink: RunSink = {
+      event: () => undefined,
+      finish: async () => {
+        saved = true;
+      },
+      fail: async () => undefined,
+    };
+    const stream = workflowStream(
+      "x",
+      catalog,
+      rules,
+      {
+        now,
+        propose: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return { items: [{ productId: "mouse-m1", qty: 1 }], discountPct: 0 };
+        },
+      },
+      [],
+      { sink },
+    );
+    const reader = stream.getReader();
+    await reader.read();
+    await reader.cancel(); // the browser goes away
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(saved).toBe(true);
   });
 });

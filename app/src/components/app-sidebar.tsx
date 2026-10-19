@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Workflow } from "lucide-react"
+import { Boxes, Receipt, Workflow } from "lucide-react"
 import Link from "next/link"
 
 import { NavMain } from "@/components/nav-main"
@@ -18,7 +18,11 @@ import {
 const navGroups = [
   {
     label: "Operations",
-    items: [{ title: "Workflow", url: "/workflow", icon: Workflow }],
+    items: [
+      { title: "Workflow", url: "/workflow", icon: Workflow },
+      { title: "Inventory", url: "/inventory", icon: Boxes },
+      { title: "Orders", url: "/orders", icon: Receipt },
+    ],
   },
 ]
 

@@ -21,3 +21,4 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 - New business rule => new unit test, including a boundary case.
 - Prefer the simplest solution; add a dependency only when it clearly pays for itself.
 - Big decisions get a short note in `docs/decisions/`.
+8. Stock and orders change ONLY through decideRun (src/db/execute.ts): one transaction that re-checks the rules first.

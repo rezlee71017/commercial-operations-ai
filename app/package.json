@@ -10,8 +10,10 @@
     "test": "vitest run",
     "check:llm": "node scripts/check-llm.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "tsx src/db/cli.ts",
-    "db:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true});console.log('database removed')\""
+    "db:seed": "tsx src/db/cli.ts setup",
+    "db:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true});console.log('database removed')\"",
+    "db:setup": "tsx src/db/cli.ts setup",
+    "db:check": "tsx src/db/cli.ts check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -32,6 +34,7 @@
     "next": "16.4.0",
     "next-themes": "^0.4.6",
     "postcss": "^8.5.29",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
     "react-day-picker": "^10.0.2",
     "react-dom": "19.3.0",
@@ -42,6 +45,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "^0.2.13",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -48,9 +48,9 @@ Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
 | 4 | Policy engine: stock, compatibility, discount limit, minimum margin | done (unit tested) |
 | 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | in progress (tool-using agent tested with a scripted model and a mock; not yet verified against live Gemini) |
 | 6 | Live run timeline (steps, tool inputs/outputs, rule results) | in progress (live step events; tool calls not yet) |
-| 7 | Human approval: approve / reject / modify / retry / cancel | planned |
-| 8 | Execution in the demo environment + persisted result | planned |
-| 9 | Audit log of decisions and status transitions | planned |
+| 7 | Human approval: approve / reject / modify / retry / cancel | partial (approve and reject work and are tested; modify, retry, cancel planned; no login yet) |
+| 8 | Execution in the demo environment + persisted result | done (tested): one transaction removes stock and creates the order |
+| 9 | Audit log of decisions and status transitions | done (tested) |
 | 10 | Offline evaluation with repeatable scenarios | planned |
 
 **Out of scope for the MVP** (possible later): proactive monitoring, long-term
