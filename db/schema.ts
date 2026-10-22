@@ -109,3 +109,69 @@ export const inventoryMovements = pgTable('inventory_movements', {
   referenceId: uuid('reference_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
+
+// ۱۰. انبارها و موجودی
+export const warehouses = pgTable('warehouses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  location: text('location'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+export const warehouseStock = pgTable('warehouse_stock', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  warehouseId: uuid('warehouse_id').references(() => warehouses.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ۱۱. قوانین قیمت‌گذاری پویا
+export const pricingRules = pgTable('pricing_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  ruleName: text('rule_name').notNull(),
+  conditions: jsonb('conditions').notNull(),
+  adjustmentValue: integer('adjustment_value').notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ۱۲. کوپن‌ها
+export const coupons = pgTable('coupons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  discountPercent: integer('discount_percent').notNull(),
+  maxDiscountAmount: integer('max_discount_amount'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ۱۳. نظرات کاربران
+export const productReviews = pgTable('product_reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  customerId: uuid('customer_id').references(() => profiles.id, { onDelete: 'cascade' }),
+  rating: integer('rating').notNull(),
+  comment: text('comment'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ۱۴. وب‌هوک‌ها
+export const webhookSubscriptions = pgTable('webhook_subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  url: text('url').notNull(),
+  events: text('events').array().notNull(),
+  secret: text('secret').notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ۱۵. تنظیمات سیستم
+export const systemSettings = pgTable('system_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
