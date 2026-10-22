@@ -21,3 +21,13 @@ Notes
 - Do not use the database or backend that Figma Make can create for its own prototypes. The website talks to our API only.
 - Schema changes go through Drizzle migrations in `app/drizzle` (`npm run db:generate`), then `npm run db:setup`. Do not edit tables by hand in the dashboard, or the repo and the database drift apart.
 - Before any public deployment: merchant login and RLS policies for anything reachable with the anon key, and protection of `POST /api/runs/[id]/decision`.
+
+## Current state of the Supabase project (2026-10-23)
+- Project "Commercial Operations AI" (region us-east-1) has an EMPTY `public` schema on purpose: the earlier
+  hand-made draft tables were removed (they had 0 rows). The tables are created by `npm run db:setup`
+  from `app/drizzle`, so the repo and the database stay in sync.
+- The `vector` extension is installed (for RAG later). The `ensure_rls` event trigger turns on RLS for new
+  tables automatically; `rls_auto_enable()` can no longer be called through the API.
+- The app does not talk to this project until `DATABASE_URL` is set in `app/.env.local`. Until then it uses
+  the local database, so nothing here is tested end to end yet.
+- Before connecting: after `db:setup`, run the Supabase "Security Advisor" once and check there are no warnings.
