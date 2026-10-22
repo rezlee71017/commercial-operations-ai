@@ -2,11 +2,15 @@
 
 AI-powered platform for intelligent business workflows, sales optimization, and commercial operations automation.
 
-> **Status: early development (updated 2026-10-15).** Implemented and unit-tested:
+> **Status: early development (updated 2026-10-22).** Implemented and unit-tested (64 tests):
 > the policy engine, the workflow runner with recorded events, a mock proposer,
-> and customer-owned-product handling. A single Gemini call has been run manually.
-> Everything else is still planned. A feature is only marked `done` after it is
-> implemented **and** tested.
+> customer-owned-product handling, saved runs, approve/reject with transactional
+> execution, the audit log and a public products API that never exposes cost.
+> A live Gemini run (single-call mode) has been recorded end to end by hand; the
+> tool-using agent has not been verified against live Gemini yet.
+> The website is the Figma Make design, mounted at `/`; its screens still use
+> hard-coded demo data and are **not connected to the backend yet**.
+> A feature is only marked `done` after it is implemented **and** tested.
 
 ## What it is
 
@@ -52,10 +56,12 @@ Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
 | 8 | Execution in the demo environment + persisted result | done (tested): one transaction removes stock and creates the order |
 | 9 | Audit log of decisions and status transitions | done (tested) |
 | 10 | Offline evaluation with repeatable scenarios | planned |
+| 11 | Storefront and operator/owner screens (Figma Make design) | partial (design mounted at `/` with demo data; `GET /api/products` done and tested; screens not wired to the backend) |
+| 12 | Customer shopping assistant: goal-first, structured results (cards, comparison, bundles), no cost or margin shown | planned |
 
-**Out of scope for the MVP** (possible later): proactive monitoring, long-term
-memory, supplier comparison, customer-facing assistant, image generation,
-real third-party store integration, custom model training.
+**Out of scope for the MVP** (possible later): supplier sourcing and negotiation,
+proactive monitoring, long-term memory, image generation, real third-party store
+integration, custom model training.
 
 ## Acceptance criteria (MVP)
 
@@ -100,9 +106,9 @@ Principles:
 
 | Layer | Choice |
 |---|---|
-| Frontend | Next.js (TypeScript) + shadcn/ui, installable PWA |
+| Frontend | Figma Make design exported to React and mounted in Next.js (TypeScript); the old shadcn template is retired (see `docs/decisions/0005-figma-owns-the-ui.md`) |
 | Backend | Next.js route handlers / server actions |
-| Database | Supabase Postgres (or local Postgres via Docker as fallback) |
+| Database | Drizzle ORM + migrations. Local embedded Postgres (PGlite) by default; Supabase Postgres to be connected near the end (`docs/supabase.md`) |
 | Live updates | Persisted run events + Server-Sent Events or Supabase Realtime (polling fallback) |
 | LLM | Provider interface; free-tier hosted model and/or local model |
 | Recommender | Co-occurrence / association rules computed offline (Colab, Python), stored in DB |
@@ -119,30 +125,46 @@ before depending on any service.
 - Every record carries `source` and `is_synthetic`.
 - Evaluation results on synthetic data are **not** evidence of real business impact.
 
-## Repository layout (planned)
+## Repository layout
 
 ```
-/docs          requirements, use cases, UML, ADRs, evaluation protocol
-/app           web application
-/db            schema, migrations, seed scripts
-/eval          scenarios and evaluation scripts
-/notebooks     data analysis and offline recommender experiments
+/app                 Next.js application
+  src/core           business rules, policy engine, agent, workflow runner
+  src/db             schema, repositories, transactional execution
+  src/data           synthetic demo catalog
+  src/design/figma   Figma Make export (the website look)
+  src/app            routes: (figma) site at /, (legacy) old template pages, api/
+  drizzle            SQL migrations
+/docs                decisions (ADRs), Figma integration, Supabase guide, inspiration, design exports
+/eval                evaluation scenarios (planned)
+/notebooks           offline recommender experiments (planned)
 ```
 
 ## Setup
 
-To be written once the first runnable version exists. Environment variables will
-be documented in `.env.example`. Secrets are never committed.
+```bash
+cd app
+npm install
+cp ../.env.example .env.local     # then fill in GEMINI_API_KEY (or set LLM_MODE=mock)
+npm test                          # unit tests
+npm run db:check                  # shows which database is used and what is in it
+npm run dev                       # the Figma site is at http://localhost:3000
+```
+
+Environment variables are documented in `.env.example`. Secrets are never committed.
+Using Supabase instead of the local database: see `docs/supabase.md`.
 
 ## Roadmap
 
-1. Project foundation, schema, seed data
-2. Policy engine with unit tests
-3. Recommender and baseline
-4. Agent workflow + live timeline
-5. Approval and execution
-6. Evaluation and report
+1. Done: foundation, schema, seed data, policy engine, saved runs, approval and execution
+2. Now: Figma-based website. Redesign for the real catalog (phones, laptops, accessories), then wire each screen to the real API through adapters
+3. Customer shopping assistant (goal-first, structured results) on top of the same agent and policy engine
+4. Verify the tool-using agent on live Gemini; add modify/retry/cancel with re-validation
+5. Login for the merchant workspace, then connect Supabase (dedicated project) and test on it
+6. Offline evaluation (30+ scenarios) and the report
 7. Later: proactive monitoring, memory, what-if simulation
+
+Design inspiration (Alibaba AI Mode and Accio first, then IntelliCart and Amazon): `docs/inspiration.md`.
 
 ## License
 
