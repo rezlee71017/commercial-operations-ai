@@ -5,7 +5,8 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 ## Stack and commands
 - Web app: Next.js + TypeScript in `app/`.
 - Tests: `cd app && npm test` (Vitest). Run them before saying a task is done.
-- Core logic lives in `app/src/core/`, demo data in `app/src/data/`.
+- Core logic: `app/src/core/`. Database and execution: `app/src/db/`. Demo data: `app/src/data/`.
+- UI: the Figma Make export in `app/src/design/figma/` (see `docs/figma-integration.md`). Our own adapters and API clients live outside that folder.
 
 ## Non-negotiable rules
 1. Prices, stock levels, margins and totals come from the catalog or deterministic code, never from the LLM.
@@ -13,12 +14,16 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 3. Validate all LLM output (zod) before using it. Model failures must show as visible failures.
 4. Progress shown in the UI must come from real recorded events. Never fake steps.
 5. Every demo record is marked `isSynthetic: true`. Do not present synthetic results as real-world evidence.
-6. Never commit secrets (.env, API keys). Use `.env.local` and keep `.env.example` updated.
+6. Never commit secrets (.env, API keys). Use `app/.env.local` and keep `.env.example` updated.
 7. Money is stored and calculated as integer cents. Floats are only for display.
+8. Stock and orders change ONLY through `decideRun` (`app/src/db/execute.ts`): one transaction that re-checks the rules first.
+9. Customer-facing data never contains purchase cost or margin. Use `toPublicProduct` (`core/public.ts`). Cost and margin are operator-only.
+10. Figma owns the look. Do not hand-restyle files in `app/src/design/`; only the mechanical fixes listed in `docs/figma-integration.md` are allowed. To change the look, change it in Figma Make and re-export.
+11. Database schema changes go through Drizzle migrations (`npm run db:generate`), never by editing tables by hand in the Supabase dashboard.
+12. `POST /api/runs/[id]/decision` must require a signed-in merchant before any public deployment.
 
 ## Working style
 - One task = one GitHub Issue = one branch. Keep diffs small; do not touch unrelated files.
 - New business rule => new unit test, including a boundary case.
 - Prefer the simplest solution; add a dependency only when it clearly pays for itself.
 - Big decisions get a short note in `docs/decisions/`.
-8. Stock and orders change ONLY through decideRun (src/db/execute.ts): one transaction that re-checks the rules first.

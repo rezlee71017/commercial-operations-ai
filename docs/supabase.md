@@ -15,3 +15,9 @@ Notes
 - Tables have row level security enabled with no policies. The app connects as the database owner role.
   If queries unexpectedly return nothing on Supabase, check that the role used in DATABASE_URL can bypass row level security.
 - The automated tests cover our code through the hosted-database driver, but only a real project proves that your account and network work.
+
+## Rules for working with Supabase in this project
+- Use a dedicated Supabase project for this app. Do not share it with another application.
+- Do not use the database or backend that Figma Make can create for its own prototypes. The website talks to our API only.
+- Schema changes go through Drizzle migrations in `app/drizzle` (`npm run db:generate`), then `npm run db:setup`. Do not edit tables by hand in the dashboard, or the repo and the database drift apart.
+- Before any public deployment: merchant login and RLS policies for anything reachable with the anon key, and protection of `POST /api/runs/[id]/decision`.

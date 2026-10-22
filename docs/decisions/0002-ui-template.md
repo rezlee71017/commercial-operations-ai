@@ -1,6 +1,6 @@
 # 0002: UI foundation
 
-Status: accepted (2026-10-17)
+Status: superseded by 0005 (2026-10-22). Accepted on 2026-10-17.
 
 ## Decision
 Use the MIT-licensed shadcn-dashboard-landing-template (Next.js version, commit 953300f,
