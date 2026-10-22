@@ -196,3 +196,79 @@ as $$
   order by knowledge_base.embedding <=> query_embedding
   limit match_count;
 $$;
+
+-- ۱۹. جدول انبارها و موجودی چندگانه (Warehouses & Stock)
+create table if not exists warehouses (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    location text,
+    created_at timestamptz default now()
+);
+
+create table if not exists warehouse_stock (
+    id uuid primary key default gen_random_uuid(),
+    warehouse_id uuid references warehouses(id) on delete cascade,
+    product_id uuid references products(id) on delete cascade,
+    quantity integer not null default 0,
+    created_at timestamptz default now(),
+    unique(warehouse_id, product_id)
+);
+
+-- ۲۰. جدول قوانین قیمت‌گذاری پویا (Dynamic Pricing Rules)
+create table if not exists pricing_rules (
+    id uuid primary key default gen_random_uuid(),
+    product_id uuid references products(id) on delete cascade,
+    rule_name text not null,
+    conditions jsonb not null,
+    adjustment_value integer not null,
+    is_active boolean default true,
+    created_at timestamptz default now()
+);
+
+-- ۲۱. جدول کوپن‌ها و تخفیف‌ها (Coupons)
+create table if not exists coupons (
+    id uuid primary key default gen_random_uuid(),
+    code text unique not null,
+    discount_percent integer not null,
+    max_discount_amount integer,
+    expires_at timestamptz,
+    is_active boolean default true,
+    created_at timestamptz default now()
+);
+
+-- ۲۲. جدول نظرات محصولات (Product Reviews)
+create table if not exists product_reviews (
+    id uuid primary key default gen_random_uuid(),
+    product_id uuid references products(id) on delete cascade,
+    customer_id uuid references profiles(id) on delete cascade,
+    rating integer not null check (rating >= 1 and rating <= 5),
+    comment text,
+    created_at timestamptz default now()
+);
+
+-- ۲۳. جدول وب‌هوک‌ها و رویدادها (Webhooks)
+create table if not exists webhook_subscriptions (
+    id uuid primary key default gen_random_uuid(),
+    url text not null,
+    events text[] not null,
+    secret text not null,
+    is_active boolean default true,
+    created_at timestamptz default now()
+);
+
+create table if not exists webhook_deliveries (
+    id uuid primary key default gen_random_uuid(),
+    subscription_id uuid references webhook_subscriptions(id) on delete cascade,
+    payload jsonb not null,
+    response_status integer,
+    success boolean default false,
+    created_at timestamptz default now()
+);
+
+-- ۲۴. جدول تنظیمات سیستمی (System Settings)
+create table if not exists system_settings (
+    id uuid primary key default gen_random_uuid(),
+    key text unique not null,
+    value jsonb not null,
+    updated_at timestamptz default now()
+);
