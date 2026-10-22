@@ -20,8 +20,10 @@ Nothing else was changed.
 | Part of the Figma site | Status |
 |---|---|
 | Storefront, cart, bundle builder, operator and owner screens | MOCK: all data is hard-coded in `FigmaApp.tsx` (guitars, amps, ...). Not connected to the backend |
-| `GET /api/products` (public catalog, no cost) | Implemented, unit tested, verified on a production build (47 products, no `costCents`) |
-| `POST /api/run`, `GET /api/runs`, `GET /api/runs/[id]`, `POST /api/runs/[id]/decision` | Implemented earlier; not yet used by the Figma UI |
+| `GET /api/products` (public catalog + categories, no cost) | Implemented, tested (no `costCents` in the response) |
+| `POST /api/run`, `GET /api/runs`, `GET /api/runs/[id]`, `POST /api/runs/[id]/decision` | Implemented; runs/decision are now operator-only (token); the customer stream is redacted; not yet used by the Figma UI |
+| `GET /api/operator/{summary,inventory,rules,orders,audit}`, `PUT /api/operator/rules` | Implemented and tested; not yet used by the Figma UI |
+| Typed client `app/src/api/client.ts` | Implemented and tested; the Figma UI should use it |
 
 ## Backend contract the Figma UI must use
 - `POST /api/run` body `{ request: string, owned?: string[] }` answers with NDJSON (`application/x-ndjson`), one workflow event per line.
@@ -33,4 +35,4 @@ Nothing else was changed.
 - Run statuses seen in code: `running`, `awaiting_approval`, `rejected_by_policy`, `approved`, `executed`, `rejected`, `failed`.
 - Run modes: `gemini-single` (default), `gemini-tools` (`AGENT_MODE=tools`), `mock-single`, `mock-tools` (`LLM_MODE=mock`).
 - Money is integer cents. The purchase cost and margin are operator-only and must never appear in storefront data.
-- The decision endpoint has no login yet: it must be protected before any public deployment.
+- Full endpoint list, auth rules and status: see `docs/api.md`.

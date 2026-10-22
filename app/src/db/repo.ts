@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Product, Rules } from "../core/types";
 import type { Queryable } from "./client";
-import { inventory, policies, productCompat, products } from "./schema";
+import { auditLog, categories, inventory, policies, productCompat, products } from "./schema";
 
 // The database is the source of truth. These functions turn rows into the plain
 // objects the business logic works with.
@@ -40,4 +40,28 @@ export async function loadRules(db: Queryable): Promise<Rules> {
   const [row] = await db.select().from(policies).where(eq(policies.key, "rules"));
   if (!row) throw new Error("No business rules found in the database (policies.rules)");
   return RulesSchema.parse(row.value);
+}
+
+export async function loadCategories(db: Queryable): Promise<{ id: string; name: string }[]> {
+  return db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(categories.name);
+}
+
+// Limits for the business rules an operator may set (validated again on the server).
+export const RulesInput = z.object({
+  minMarginPct: z.number().min(0).max(95),
+  maxDiscountPct: z.number().min(0).max(90),
+});
+
+// Changes the rules and records who changed what in the audit log.
+export async function saveRules(db: Queryable, rules: Rules, actor = "operator"): Promise<Rules> {
+  const before = await loadRules(db);
+  await db.update(policies).set({ value: rules, updatedAt: new Date() }).where(eq(policies.key, "rules"));
+  await db.insert(auditLog).values({
+    actor,
+    action: "rules.updated",
+    entityType: "policy",
+    entityId: "rules",
+    data: { before, after: rules },
+  });
+  return rules;
 }

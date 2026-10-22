@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { isOperator } from "@/api/operator-auth";
+import { serverError } from "@/api/http";
+import { redactNdjson } from "@/core/redact";
 import { proposeWithGemini } from "@/core/llm";
 import { proposeWithMock } from "@/core/mock";
 import { makeAgentPropose } from "@/core/agent-propose";
@@ -36,13 +39,15 @@ export async function POST(req: Request) {
     // Every run is stored, with every event, so the history survives a page refresh.
     const runId = await createRun(db, { request, owned, mode });
     const sink = createRunRecorder(db, runId);
-    return new Response(workflowStream(request, catalog, rules, { propose }, owned, { runId, sink }), {
+    const stream = workflowStream(request, catalog, rules, { propose }, owned, { runId, sink });
+    // Customers never receive purchase cost or margin. The database keeps the full run for the operator.
+    return new Response(isOperator(req) ? stream : redactNdjson(stream), {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
       },
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return serverError(e);
   }
 }

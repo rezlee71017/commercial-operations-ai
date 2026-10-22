@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireOperator } from "@/api/operator-auth";
+import { serverError } from "@/api/http";
 import { getDb } from "@/db/client";
 import { decideRun } from "@/db/execute";
 
@@ -8,9 +10,10 @@ const Body = z.object({
   note: z.string().max(500).optional(),
 });
 
-// NOTE: there is no login yet. Before a public deployment this endpoint must require
-// a signed-in merchant, because it changes stock and creates orders.
+// Operator-only (OPERATOR_TOKEN): it changes stock and creates orders.
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireOperator(req);
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -23,6 +26,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const status = result.code === "not_found" ? 404 : result.code === "not_awaiting" ? 409 : 422;
     return NextResponse.json(result, { status });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return serverError(e);
   }
 }
