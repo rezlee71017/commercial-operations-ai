@@ -3,3 +3,6 @@ node_modules/
 .env
 .env.local
 .DS_Store
+
+# local agent evaluation outputs
+eval/last-run-*.json
