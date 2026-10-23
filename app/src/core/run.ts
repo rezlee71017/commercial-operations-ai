@@ -1,3 +1,4 @@
+import { ProviderError } from "./gemini-http";
 import { evaluateProposal } from "./policy";
 import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
 
@@ -45,7 +46,14 @@ export async function runWorkflow(
     proposal = await deps.propose(request, catalog, owned, { log, rules });
     log("proposal_generated", "ok", proposal);
   } catch (e) {
-    log("proposal_generated", "failed", { error: e instanceof Error ? e.message : String(e) });
+    // A provider failure is recorded as such: customers get a safe message, the operator keeps the detail.
+    log(
+      "proposal_generated",
+      "failed",
+      e instanceof ProviderError
+        ? { error: e.publicMessage, code: e.kind, providerDetail: e.message }
+        : { error: e instanceof Error ? e.message : String(e) },
+    );
     return { status: "failed", events, proposal: null, evaluation: null };
   }
 

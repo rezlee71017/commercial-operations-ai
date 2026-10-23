@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Product, Proposal } from "./types";
+import { geminiFetch } from "./gemini-http";
 
 const ProposalSchema = z.object({
   items: z.array(z.object({ productId: z.string(), qty: z.number() })).min(1),
@@ -42,7 +43,7 @@ export async function proposeWithGemini(
     JSON.stringify(products),
   ].join("\n");
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const res = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
@@ -51,7 +52,6 @@ export async function proposeWithGemini(
       generationConfig: { responseMimeType: "application/json" },
     }),
   });
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${await res.text()}`);
 
   const data = await res.json();
   const parts: { text?: string }[] = data?.candidates?.[0]?.content?.parts ?? [];

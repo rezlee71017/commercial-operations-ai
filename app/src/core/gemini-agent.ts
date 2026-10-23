@@ -1,3 +1,4 @@
+import { geminiFetch, type FetchOptions } from "./gemini-http";
 import { TOOL_SPECS } from "./tools";
 import type { AgentModel, ModelInput, ModelTurn } from "./agent";
 
@@ -22,7 +23,7 @@ export function parseGeminiResponse(data: unknown): { content: Content; turn: Mo
   return { content, turn: { text: text || undefined, toolCalls } };
 }
 
-export function createGeminiAgentModel(opts: { apiKey: string; model?: string; system: string }): AgentModel {
+export function createGeminiAgentModel(opts: { apiKey: string; model?: string; system: string; http?: FetchOptions }): AgentModel {
   const model = opts.model ?? "gemini-3.5-flash-lite";
   const contents: Content[] = [];
 
@@ -37,7 +38,7 @@ export function createGeminiAgentModel(opts: { apiKey: string; model?: string; s
         contents.push({ role: "user", parts: [{ text: input.text }] });
       }
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      const res = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": opts.apiKey },
         body: JSON.stringify({
@@ -45,8 +46,7 @@ export function createGeminiAgentModel(opts: { apiKey: string; model?: string; s
           contents,
           tools: [{ functionDeclarations: TOOL_SPECS }],
         }),
-      });
-      if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${await res.text()}`);
+      }, opts.http);
 
       const { content, turn } = parseGeminiResponse(await res.json());
       contents.push(content);

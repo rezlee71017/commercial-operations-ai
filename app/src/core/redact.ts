@@ -1,7 +1,7 @@
 // What a CUSTOMER may see of a workflow run. Purchase cost and margin are operator-only.
 // The full, unredacted run is stored in the database and shown to the operator.
 
-const SECRET_KEYS = new Set(["costCents", "marginPct", "unitCostCents", "cost_cents"]);
+const SECRET_KEYS = new Set(["costCents", "marginPct", "unitCostCents", "cost_cents", "providerDetail"]);
 
 export function redactForCustomer<T>(value: T): T {
   if (Array.isArray(value)) return value.map((v) => redactForCustomer(v)) as unknown as T;

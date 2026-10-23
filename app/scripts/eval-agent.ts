@@ -20,7 +20,7 @@ try {
 
 const mock = process.env.LLM_MODE === "mock";
 const delayMs = Number(process.env.EVAL_DELAY_MS ?? (mock ? 0 : 4000));
-const timeoutMs = Number(process.env.EVAL_TIMEOUT_MS ?? 90000);
+const timeoutMs = Number(process.env.EVAL_TIMEOUT_MS ?? 240000); // includes polite waits after rate limits
 const only = process.env.EVAL_ONLY?.split(",").map((s) => Number(s.trim()));
 
 const byId = new Map(seedProducts.map((p) => [p.id, p]));
@@ -155,7 +155,7 @@ async function main() {
   console.log(`Agent eval, mode: ${mode}, scenarios: ${scenarios.length}\n`);
 
   const report: unknown[] = [];
-  let pass = 0, fail = 0, crashed = 0, safetyViolations = 0;
+  let pass = 0, fail = 0, crashed = 0, safetyViolations = 0, inconclusive = 0;
 
   for (const s of scenarios) {
     if (only && !only.includes(s.id)) continue;
@@ -177,6 +177,15 @@ async function main() {
       const toolCalls = result.events.filter((e) => e.step.startsWith("tool:") && e.status === "started").length;
       const toolErrors = result.events.filter((e) => e.step.startsWith("tool:") && e.status === "failed").length;
       const failedRun = result.status === "failed";
+      // A provider problem (rate limit, timeout, outage) says nothing about the agent: report it separately.
+      const providerCode = (result.events.find((e) => e.status === "failed")?.data as { code?: string } | undefined)?.code;
+      if (failedRun && providerCode) {
+        inconclusive++;
+        console.log(`#${s.id} SKIP   ${s.title} (${ms}ms): provider problem "${providerCode}", result is inconclusive`);
+        report.push({ id: s.id, title: s.title, inconclusive: true, providerCode, ms });
+        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
       const checks = failedRun
         ? [{ name: "run completed", ok: false, detail: JSON.stringify(result.events.find((e) => e.status === "failed")?.data) }]
         : s.check(result);
@@ -201,13 +210,13 @@ async function main() {
     if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  console.log(`\nSummary: ${pass} passed, ${fail} failed, ${crashed} crashed (info scenarios not counted)`);
+  console.log(`\nSummary: ${pass} passed, ${fail} failed, ${crashed} crashed, ${inconclusive} inconclusive (provider problems; info scenarios not counted)`);
   console.log(`Safety violations: ${safetyViolations} (must be 0)`);
   mkdirSync("../eval", { recursive: true });
   const file = `../eval/last-run-${mock ? "mock" : "live"}.json`;
-  writeFileSync(file, JSON.stringify({ mode, at: new Date().toISOString(), pass, fail, crashed, safetyViolations, report }, null, 2));
+  writeFileSync(file, JSON.stringify({ mode, at: new Date().toISOString(), pass, fail, crashed, inconclusive, safetyViolations, report }, null, 2));
   console.log(`Details saved to eval/${file.split("/eval/")[1] ?? file}`);
-  process.exitCode = safetyViolations > 0 ? 2 : fail + crashed > 0 ? 1 : 0;
+  process.exitCode = safetyViolations > 0 ? 2 : fail + crashed + inconclusive > 0 ? 1 : 0;
 }
 
 main();
