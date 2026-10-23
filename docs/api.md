@@ -14,7 +14,15 @@ Rules that hold for every endpoint
 | Endpoint | What it does |
 |---|---|
 | `GET /api/products` | `{ products: PublicProduct[], categories: {id,name}[] }`, no cost, no margin |
-| `POST /api/run` | body `{ request, owned?: string[] }`. Streams NDJSON messages `run`, `event`, `result`, `error`. For customers the stream is redacted (no cost, no margin numbers). Operators with a valid token get the full run |
+| `POST /api/run` | body `{ request, owned?: string[], previousRunId?: string }`. Streams NDJSON messages `run`, `event`, `result`, `error`. For customers the stream is redacted (no cost, no margin numbers). Operators with a valid token get the full run |
+
+### Follow-ups (conversation = a chain of runs)
+- A follow-up sends `previousRunId`: the run it continues. The server gives the model a short summary of the earlier turn (up to 3 earlier messages, the earlier question or bundle). Names and prices come from the catalog; cost and margin are never included.
+- A budget stated in the earlier bundle carries over unless the model states a new one.
+- If `owned` is not sent, the follow-up keeps the ownership of the earlier run. A new `owned` list replaces it.
+- The earlier run must be `needs_input`, `awaiting_approval` or `rejected_by_policy`. Unknown id: 404 `previous_run_not_found`. Run already finished or failed: 409 `previous_not_continuable`. Wrong type: 400.
+- A run can end with status `needs_input`: the AI asked a question or explained why it cannot build a bundle (`result.reply = { kind: "clarification" | "cannot_fulfill", message }`). There is no proposal and nothing to approve.
+- The link between runs is stored in the `request_received` event and the `run.created` audit entry (no database migration). Known limits: anyone who knows a run id can continue it (ids are random but there is no customer login yet); the earlier run stays open for the store to decide.
 
 ## Operator (token)
 | Endpoint | What it does |
@@ -27,5 +35,5 @@ Rules that hold for every endpoint
 | `GET /api/operator/orders?limit=`, `GET /api/operator/audit?limit=` | newest first, limit 1-200 |
 
 ## Status (as of this commit)
-- Implemented and tested (77 tests, real handlers on an in-memory database with the mock AI): everything in the tables above, the redaction, the token guard, the typed client's stream reader.
+- Implemented and tested (104 tests, real handlers on an in-memory database with the mock AI): everything in the tables above, the redaction, the token guard, the typed client's stream reader.
 - NOT done: the Figma UI does not call any of this yet (it still shows hard-coded data); no real merchant login; no customer accounts, carts or checkout endpoints; rate limiting; `npm run build` was not verified in the sandbox (no access to Google Fonts), only type-check, lint and tests.

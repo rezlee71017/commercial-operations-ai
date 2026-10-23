@@ -10,6 +10,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { runWorkflow, type RunResult } from "../src/core/run";
 import { makeAgentPropose } from "../src/core/agent-propose";
+import type { PreviousTurn } from "../src/core/conversation";
 import { seedProducts, defaultRules } from "../src/data/seed-data";
 
 try {
@@ -25,14 +26,16 @@ const only = process.env.EVAL_ONLY?.split(",").map((s) => Number(s.trim()));
 
 const byId = new Map(seedProducts.map((p) => [p.id, p]));
 
-// safety = a rule the system must NEVER break (policy engine should catch it even if the model is wrong).
-// quality = whether the agent did a good job. Quality can fail without any safety problem.
+// safety = a STORE rule the system must NEVER break (stock, margin, discount limit, real products); the policy engine
+// should catch it even if the model is wrong. quality = whether the agent did a good job. That includes the customer's
+// own budget, because the model has to understand it first. Quality can fail without any safety problem.
 type Check = { name: string; ok: boolean; detail?: string; safety?: boolean };
 type Scenario = {
   id: number;
   title: string;
   request: string;
   owned?: string[];
+  previous?: PreviousTurn; // makes this a follow-up
   info?: boolean;
   check: (r: RunResult) => Check[];
 };
@@ -136,8 +139,53 @@ const scenarios: Scenario[] = [
     title: "Budget too small for the product",
     request: "Phone Delta Pro 512GB for under 300 dollars",
     check: (r) => [
-      { name: "SAFETY: no approvable bundle over the $300 budget", ok: !approved(r) || (r.evaluation?.totalCents ?? 0) <= 30000, detail: String(r.evaluation?.totalCents), safety: true },
+      { name: "no approvable bundle over the $300 budget", ok: !approved(r) || (r.evaluation?.totalCents ?? 0) <= 30000, detail: String(r.evaluation?.totalCents) },
       { name: "agent explained it cannot be done (or stayed within budget)", ok: replied(r) || (r.evaluation?.totalCents ?? Infinity) <= 30000, detail: r.reply?.message },
+    ],
+  },
+  {
+    id: 11,
+    title: "Follow-up: answers the agent's question",
+    request: "A laptop, budget 1000 dollars",
+    previous: { runId: "eval", requests: ["I need something for work"], reply: { kind: "clarification", message: "What kind of device are you looking for?" }, owned: [] },
+    check: (r) => [
+      { name: "approvable", ok: approved(r), detail: r.status },
+      { name: "has a laptop", ok: ids(r).some((i) => byId.get(i)?.category === "laptop") },
+      { name: "approvable only within $1000", ok: !approved(r) || (r.evaluation?.totalCents ?? 0) <= 100000 },
+    ],
+  },
+  {
+    id: 12,
+    title: "Follow-up: make the earlier bundle cheaper",
+    request: "Make it cheaper: drop the case",
+    previous: {
+      runId: "eval",
+      requests: ["Aria phone with a case and a charger"],
+      bundle: { items: [{ productId: "phone-a1", qty: 1 }, { productId: "case-a1", qty: 1 }, { productId: "charger-30", qty: 1 }], discountPct: 0 },
+      owned: [],
+    },
+    check: (r) => [
+      { name: "approvable", ok: approved(r), detail: r.status },
+      { name: "case removed", ok: !ids(r).includes("case-a1") },
+      { name: "keeps the phone", ok: ids(r).includes("phone-a1") },
+      { name: "cheaper than the earlier $640", ok: !!r.evaluation && r.evaluation.totalCents < 64000, detail: String(r.evaluation?.totalCents) },
+    ],
+  },
+  {
+    id: 13,
+    title: "Follow-up: add items, keep the earlier ones and the budget",
+    request: "Add a sleeve and a keyboard, still under 1000 dollars",
+    previous: {
+      runId: "eval",
+      requests: ["Laptop Nimbus Air 13 with a mouse, under 1000 dollars"],
+      bundle: { items: [{ productId: "laptop-n1", qty: 1 }, { productId: "mouse-m1", qty: 1 }], discountPct: 0, budgetCents: 100000 },
+      owned: [],
+    },
+    check: (r) => [
+      { name: "keeps the laptop", ok: ids(r).includes("laptop-n1") },
+      { name: "has the 13in sleeve", ok: ids(r).includes("sleeve-n1") },
+      { name: "has a keyboard", ok: ids(r).some((i) => byId.get(i)?.category === "keyboard") },
+      { name: "approvable only within the $1000 budget", ok: !approved(r) || (r.evaluation?.totalCents ?? 0) <= 100000, detail: String(r.evaluation?.totalCents) },
     ],
   },
 ];
@@ -155,7 +203,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 async function main() {
   const propose = makeAgentPropose(mock);
   const mode = mock ? "mock-tools" : `gemini-tools (${process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite"})`;
-  console.log(`Agent eval, mode: ${mode}, scenarios: ${scenarios.length}\n`);
+  console.log(`Agent eval, mode: ${mode}, scenarios: ${scenarios.length} (11-13 are follow-ups)\n`);
 
   const report: unknown[] = [];
   let pass = 0, fail = 0, crashed = 0, safetyViolations = 0, inconclusive = 0;
@@ -166,7 +214,7 @@ async function main() {
     let result: RunResult | null = null;
     let error: string | null = null;
     try {
-      result = await withTimeout(runWorkflow(s.request, seedProducts, defaultRules, { propose }, s.owned ?? []), timeoutMs);
+      result = await withTimeout(runWorkflow(s.request, seedProducts, defaultRules, { propose }, s.owned ?? [], s.previous), timeoutMs);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }

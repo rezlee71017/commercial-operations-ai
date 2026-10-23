@@ -5,6 +5,8 @@ import { redactNdjson } from "@/core/redact";
 import { proposeWithGemini } from "@/core/llm";
 import { proposeWithMock } from "@/core/mock";
 import { makeAgentPropose } from "@/core/agent-propose";
+import { loadPreviousTurn } from "@/db/conversation";
+import type { PreviousTurn } from "@/core/conversation";
 import { workflowStream } from "@/core/stream";
 import { getDb } from "@/db/client";
 import { loadCatalog, loadRules } from "@/db/repo";
@@ -25,21 +27,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "request is required" }, { status: 400 });
     }
 
+    // A follow-up continues an earlier run of the same conversation (see docs/api.md).
+    const rawPrev: unknown = body?.previousRunId;
+    if (rawPrev !== undefined && (typeof rawPrev !== "string" || rawPrev.length === 0 || rawPrev.length > 100)) {
+      return NextResponse.json({ error: "previousRunId must be a run id", code: "bad_request" }, { status: 400 });
+    }
+
     // The database is the source of truth for products, stock and rules.
     const db = await getDb();
     const [catalog, rules] = await Promise.all([loadCatalog(db), loadRules(db)]);
     const knownIds = new Set(catalog.map((p) => p.id));
 
+    let previous: PreviousTurn | undefined;
+    if (typeof rawPrev === "string") {
+      const loaded = await loadPreviousTurn(db, rawPrev);
+      if (!loaded.ok) {
+        const status = loaded.code === "previous_run_not_found" ? 404 : 409;
+        return NextResponse.json({ error: loaded.message, code: loaded.code }, { status });
+      }
+      previous = loaded.turn;
+    }
+
     // Ownership comes from what the user selected (later: from order history in the database).
+    // A follow-up that does not send it keeps the ownership of the conversation.
     const rawOwned: unknown = body?.owned;
     const owned = Array.isArray(rawOwned)
       ? rawOwned.filter((x): x is string => typeof x === "string" && knownIds.has(x))
-      : [];
+      : (previous?.owned ?? []);
 
     // Every run is stored, with every event, so the history survives a page refresh.
-    const runId = await createRun(db, { request, owned, mode });
+    const runId = await createRun(db, { request, owned, mode, previousRunId: previous?.runId });
     const sink = createRunRecorder(db, runId);
-    const stream = workflowStream(request, catalog, rules, { propose }, owned, { runId, sink });
+    const stream = workflowStream(request, catalog, rules, { propose }, owned, { runId, sink, previous });
     // Customers never receive purchase cost or margin. The database keeps the full run for the operator.
     return new Response(isOperator(req) ? stream : redactNdjson(stream), {
       headers: {

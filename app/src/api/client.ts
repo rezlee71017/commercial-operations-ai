@@ -48,7 +48,7 @@ export function createApiClient(opts: ClientOptions = {}) {
   // POST /api/run answers with newline-delimited JSON. Calls onMessage for every message as it
   // arrives and resolves with the final "result" message (or throws on an "error" message).
   async function streamRun(
-    input: { request: string; owned?: string[] },
+    input: { request: string; owned?: string[]; previousRunId?: string },
     onMessage: (m: StreamMessage) => void,
     signal?: AbortSignal,
   ): Promise<Extract<StreamMessage, { type: "result" }>["result"]> {

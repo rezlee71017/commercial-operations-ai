@@ -8,7 +8,7 @@ import { approvals, auditLog, orderItems, orders, runEvents, workflowRuns } from
 
 export async function createRun(
   db: Db,
-  input: { request: string; owned: string[]; mode: string },
+  input: { request: string; owned: string[]; mode: string; previousRunId?: string },
 ): Promise<string> {
   const id = randomUUID();
   await db.insert(workflowRuns).values({
@@ -23,7 +23,7 @@ export async function createRun(
     action: "run.created",
     entityType: "run",
     entityId: id,
-    data: { mode: input.mode },
+    data: { mode: input.mode, ...(input.previousRunId ? { previousRunId: input.previousRunId } : {}) },
   });
   return id;
 }

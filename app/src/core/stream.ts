@@ -1,3 +1,4 @@
+import type { PreviousTurn } from "./conversation";
 import { runWorkflow, type Deps, type RunResult } from "./run";
 import type { Product, RunEvent, Rules } from "./types";
 
@@ -20,7 +21,7 @@ export function workflowStream(
   rules: Rules,
   deps: Omit<Deps, "onEvent">,
   owned: string[],
-  opts: { runId?: string; sink?: RunSink } = {},
+  opts: { runId?: string; sink?: RunSink; previous?: PreviousTurn } = {},
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
@@ -47,6 +48,7 @@ export function workflowStream(
             },
           },
           owned,
+          opts.previous,
         );
         // Save first, then tell the browser: when it sees the result, a decision can safely follow.
         await opts.sink?.finish(result);

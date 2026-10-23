@@ -1,4 +1,5 @@
 import { AgentReply } from "./agent";
+import type { PreviousTurn } from "./conversation";
 import { ProviderError } from "./gemini-http";
 import { evaluateProposal } from "./policy";
 import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
@@ -6,6 +7,7 @@ import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
 export type ProposeCtx = {
   log: (step: string, status: RunEvent["status"], data?: unknown) => void;
   rules: Rules;
+  previous?: PreviousTurn; // the turn this one continues, if any
 };
 
 export type Deps = {
@@ -30,6 +32,7 @@ export async function runWorkflow(
   rules: Rules,
   deps: Deps,
   owned: string[] = [],
+  previous?: PreviousTurn,
 ): Promise<RunResult> {
   const events: RunEvent[] = [];
   const now = deps.now ?? (() => new Date().toISOString());
@@ -40,13 +43,17 @@ export async function runWorkflow(
     deps.onEvent?.(event);
   };
 
-  log("request_received", "ok", { request, owned });
+  log("request_received", "ok", { request, owned, ...(previous ? { previousRunId: previous.runId } : {}) });
   log("catalog_loaded", "ok", { products: catalog.length });
 
   let proposal: Proposal;
   log("proposal_generated", "started");
   try {
-    proposal = await deps.propose(request, catalog, owned, { log, rules });
+    proposal = await deps.propose(request, catalog, owned, { log, rules, previous });
+    // The customer's budget carries over to a follow-up unless the model states a new one.
+    if (previous?.bundle?.budgetCents !== undefined && proposal.budgetCents === undefined) {
+      proposal = { ...proposal, budgetCents: previous.bundle.budgetCents };
+    }
     log("proposal_generated", "ok", proposal);
   } catch (e) {
     if (e instanceof AgentReply) {
