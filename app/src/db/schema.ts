@@ -71,7 +71,7 @@ export const workflowRuns = pgTable("workflow_runs", {
   request: text("request").notNull(),
   owned: jsonb("owned").$type<string[]>().notNull(),
   mode: text("mode").notNull(), // for example "gemini-tools", "mock-tools"
-  status: text("status").notNull(), // running | awaiting_approval | rejected_by_policy | failed | executed | rejected | blocked
+  status: text("status").notNull(), // running | awaiting_approval | needs_input | rejected_by_policy | failed | executed | rejected | blocked
   proposal: jsonb("proposal").$type<Proposal | null>(),
   evaluation: jsonb("evaluation").$type<Evaluation | null>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

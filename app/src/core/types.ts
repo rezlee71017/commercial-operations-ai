@@ -16,6 +16,8 @@ export type Proposal = {
   items: BundleItem[];
   discountPct: number;
   explanation?: string;
+  // The customer's budget as understood by the model, in integer cents. If present, the policy engine enforces it.
+  budgetCents?: number;
 };
 
 export type Rules = { minMarginPct: number; maxDiscountPct: number };

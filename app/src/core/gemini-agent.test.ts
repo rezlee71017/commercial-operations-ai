@@ -39,6 +39,7 @@ describe("Gemini agent adapter (fake network, NOT the real API)", () => {
       "check_stock",
       "check_bundle",
       "submit_bundle",
+      "reply_to_customer",
     ]);
     // The signature from the first reply must be sent back unchanged.
     expect(JSON.stringify(bodies[1].contents)).toContain("SIG123");

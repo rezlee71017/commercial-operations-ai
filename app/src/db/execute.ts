@@ -16,6 +16,7 @@ const ProposalSchema = z.object({
   items: z.array(z.object({ productId: z.string(), qty: z.number() })),
   discountPct: z.number(),
   explanation: z.string().optional(),
+  budgetCents: z.number().int().nonnegative().optional(),
 });
 
 // Thrown inside the transaction to undo everything it did so far.

@@ -9,11 +9,16 @@ const Item = z.object({ productId: z.string(), qty: z.number() });
 const schemas = {
   search_products: z.object({ query: z.string(), category: z.string().optional() }),
   check_stock: z.object({ productId: z.string(), qty: z.number() }),
-  check_bundle: z.object({ items: z.array(Item).min(1), discountPct: z.number() }),
+  check_bundle: z.object({ items: z.array(Item).min(1), discountPct: z.number(), budgetDollars: z.number().positive().optional() }),
   submit_bundle: z.object({
     items: z.array(Item).min(1),
     discountPct: z.number(),
     explanation: z.string().optional(),
+    budgetDollars: z.number().positive().optional(),
+  }),
+  reply_to_customer: z.object({
+    kind: z.enum(["clarification", "cannot_fulfill"]),
+    message: z.string().trim().min(1).max(500),
   }),
 } as const;
 
@@ -55,7 +60,11 @@ export const TOOL_SPECS = [
       "Run the store's business rules (stock, compatibility, discount limit, minimum margin) on a DRAFT bundle. Returns totals and which rules passed or failed. Use it before submitting.",
     parameters: {
       type: "object",
-      properties: { items: { type: "array", items: itemSpec }, discountPct: { type: "number" } },
+      properties: {
+        items: { type: "array", items: itemSpec },
+        discountPct: { type: "number" },
+        budgetDollars: { type: "number", description: "the customer's total budget in dollars, if they stated one" },
+      },
       required: ["items", "discountPct"],
     },
   },
@@ -68,8 +77,22 @@ export const TOOL_SPECS = [
         items: { type: "array", items: itemSpec },
         discountPct: { type: "number" },
         explanation: { type: "string", description: "one or two sentences for the customer" },
+        budgetDollars: { type: "number", description: "the customer's total budget in dollars, if they stated one" },
       },
       required: ["items", "discountPct"],
+    },
+  },
+  {
+    name: "reply_to_customer",
+    description:
+      "Use INSTEAD of submit_bundle when you cannot build a bundle: kind 'clarification' to ask ONE short question when the request is too vague, or 'cannot_fulfill' to explain briefly what is not possible (for example a product we do not sell, or a budget too small) and what you could offer instead. Ends the task.",
+    parameters: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["clarification", "cannot_fulfill"] },
+        message: { type: "string", description: "what to tell the customer, 1 to 3 short sentences" },
+      },
+      required: ["kind", "message"],
     },
   },
 ];
@@ -95,8 +118,11 @@ const publicView = (p: Product) => ({
   compatibleWith: p.compatibleWith ?? [],
 });
 
+// The model speaks in dollars; money in our code is integer cents.
+const budget = (dollars?: number) => (dollars === undefined ? {} : { budgetCents: Math.round(dollars * 100) });
+
 export type ToolOutcome =
-  | { ok: true; result: unknown; final?: Proposal }
+  | { ok: true; result: unknown; final?: Proposal; reply?: { kind: "clarification" | "cannot_fulfill"; message: string } }
   | { ok: false; error: string };
 
 export function executeTool(name: string, rawArgs: unknown, ctx: ToolContext): ToolOutcome {
@@ -138,7 +164,12 @@ export function executeTool(name: string, rawArgs: unknown, ctx: ToolContext): T
     }
     case "check_bundle": {
       const a = args as z.infer<typeof schemas.check_bundle>;
-      const e = evaluateProposal({ items: a.items, discountPct: a.discountPct }, ctx.catalog, ctx.rules, ctx.owned);
+      const e = evaluateProposal(
+        { items: a.items, discountPct: a.discountPct, ...budget(a.budgetDollars) },
+        ctx.catalog,
+        ctx.rules,
+        ctx.owned,
+      );
       return {
         ok: true,
         result: {
@@ -155,8 +186,12 @@ export function executeTool(name: string, rawArgs: unknown, ctx: ToolContext): T
       return {
         ok: true,
         result: { accepted: true },
-        final: { items: a.items, discountPct: a.discountPct, explanation: a.explanation },
+        final: { items: a.items, discountPct: a.discountPct, explanation: a.explanation, ...budget(a.budgetDollars) },
       };
+    }
+    case "reply_to_customer": {
+      const a = args as z.infer<typeof schemas.reply_to_customer>;
+      return { ok: true, result: { delivered: true }, reply: { kind: a.kind, message: a.message } };
     }
   }
 }

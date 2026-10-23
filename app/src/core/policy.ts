@@ -97,6 +97,17 @@ export function evaluateProposal(
     marginOk ? "ok" : `Margin ${marginPct}% is below the minimum ${rules.minMarginPct}%`,
   );
 
+  // Rule: the customer's own budget, if the model understood one. The total is our code's number, never the model's.
+  if (proposal.budgetCents !== undefined) {
+    const b = proposal.budgetCents;
+    const budgetOk = Number.isInteger(b) && b >= 0 && totalCents <= b;
+    add(
+      "within_budget",
+      budgetOk,
+      budgetOk ? "ok" : `Total $${(totalCents / 100).toFixed(2)} is above the customer's budget of $${(b / 100).toFixed(2)}`,
+    );
+  }
+
   return {
     approvable: results.every((r) => r.passed),
     subtotalCents,

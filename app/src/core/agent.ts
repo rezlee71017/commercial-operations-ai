@@ -2,6 +2,17 @@ import { executeTool, type ToolContext } from "./tools";
 import type { ProposeCtx } from "./run";
 import type { Proposal } from "./types";
 
+// The model decided it cannot build a bundle and wants to say something to the customer instead.
+export class AgentReply extends Error {
+  constructor(
+    public readonly kind: "clarification" | "cannot_fulfill",
+    public readonly reply: string,
+  ) {
+    super(`Agent replied (${kind}): ${reply}`);
+    this.name = "AgentReply";
+  }
+}
+
 export type ModelInput =
   | { kind: "user"; text: string }
   | { kind: "toolResults"; results: { name: string; result: unknown }[] }
@@ -41,6 +52,7 @@ export async function runAgent(
         log(stepName, "ok", { args: call.args, result: out.result });
         results.push({ name: call.name, result: out.result });
         if (out.final) return out.final;
+        if (out.reply) throw new AgentReply(out.reply.kind, out.reply.message);
       } else {
         // The error is shown on screen AND fed back to the model so it can correct itself.
         log(stepName, "failed", { args: call.args, error: out.error });

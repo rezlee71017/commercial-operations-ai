@@ -1,3 +1,4 @@
+import { AgentReply } from "./agent";
 import { ProviderError } from "./gemini-http";
 import { evaluateProposal } from "./policy";
 import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
@@ -15,10 +16,12 @@ export type Deps = {
 };
 
 export type RunResult = {
-  status: "awaiting_approval" | "rejected_by_policy" | "failed";
+  status: "awaiting_approval" | "needs_input" | "rejected_by_policy" | "failed";
   events: RunEvent[];
   proposal: Proposal | null;
   evaluation: Evaluation | null;
+  // Present when status is "needs_input": the model asked a question or explained why it cannot build a bundle.
+  reply?: { kind: "clarification" | "cannot_fulfill"; message: string };
 };
 
 export async function runWorkflow(
@@ -46,6 +49,12 @@ export async function runWorkflow(
     proposal = await deps.propose(request, catalog, owned, { log, rules });
     log("proposal_generated", "ok", proposal);
   } catch (e) {
+    if (e instanceof AgentReply) {
+      // Not a failure: the agent finished its task by talking to the customer. No bundle exists, so no policy check.
+      const reply = { kind: e.kind, message: e.reply };
+      log("proposal_generated", "ok", { reply });
+      return { status: "needs_input", events, proposal: null, evaluation: null, reply };
+    }
     // A provider failure is recorded as such: customers get a safe message, the operator keeps the detail.
     log(
       "proposal_generated",
