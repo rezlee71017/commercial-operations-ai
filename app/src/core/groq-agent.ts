@@ -45,7 +45,7 @@ export function parseGroqResponse(data: unknown): ModelTurn {
 }
 
 export function createGroqAgentModel(opts: { apiKey: string; model?: string; system: string; http?: FetchOptions }): PreloadableModel {
-  const model = opts.model ?? "llama-3.3-70b-versatile";
+  const model = opts.model ?? "openai/gpt-oss-120b";
   const messages: Msg[] = [{ role: "system", content: opts.system }];
   const tools = (TOOL_SPECS as unknown as { name: string; description?: string; parameters?: unknown }[]).map((t) => ({
     type: "function" as const,

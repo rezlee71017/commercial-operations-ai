@@ -33,6 +33,11 @@ export function makeAgentPropose(useMock: boolean): Deps["propose"] {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
       const system = systemPrompt(owned);
+      if (process.env.LLM_PROVIDER === "groq") {
+        const key = process.env.GROQ_API_KEY;
+        if (!key) throw new Error("GROQ_API_KEY is not set");
+        return runAgent(withPrevious(request, ctx.previous, catalog), { catalog, rules: ctx.rules, owned }, createGroqAgentModel({ apiKey: key, model: process.env.GROQ_MODEL, system }), ctx.log);
+      }
       const groqKey = process.env.GROQ_API_KEY;
       // With a fallback configured, do not wait long for Gemini: switch to Groq quickly.
       const gemini = createGeminiAgentModel({
