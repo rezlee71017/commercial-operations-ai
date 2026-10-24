@@ -1,0 +1,339 @@
+From 18bf98233bd75c08cf67b2f21b17bae79d7c43f2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:50:35 +0000
+Subject: [PATCH] feat(ai): Gemini timeout, polite retry on 429, customer-safe
+ provider errors; eval marks provider problems as inconclusive
+
+---
+ app/scripts/eval-agent.ts        | 19 ++++++--
+ app/src/core/gemini-agent.ts     |  8 ++--
+ app/src/core/gemini-http.test.ts | 78 ++++++++++++++++++++++++++++++++
+ app/src/core/gemini-http.ts      | 70 ++++++++++++++++++++++++++++
+ app/src/core/llm.ts              |  4 +-
+ app/src/core/redact.ts           |  2 +-
+ app/src/core/run.ts              | 10 +++-
+ 7 files changed, 178 insertions(+), 13 deletions(-)
+ create mode 100644 app/src/core/gemini-http.test.ts
+ create mode 100644 app/src/core/gemini-http.ts
+
+diff --git a/app/scripts/eval-agent.ts b/app/scripts/eval-agent.ts
+index 46def3d..9e6b7d2 100644
+--- a/app/scripts/eval-agent.ts
++++ b/app/scripts/eval-agent.ts
+@@ -20,7 +20,7 @@ try {
+ 
+ const mock = process.env.LLM_MODE === "mock";
+ const delayMs = Number(process.env.EVAL_DELAY_MS ?? (mock ? 0 : 4000));
+-const timeoutMs = Number(process.env.EVAL_TIMEOUT_MS ?? 90000);
++const timeoutMs = Number(process.env.EVAL_TIMEOUT_MS ?? 240000); // includes polite waits after rate limits
+ const only = process.env.EVAL_ONLY?.split(",").map((s) => Number(s.trim()));
+ 
+ const byId = new Map(seedProducts.map((p) => [p.id, p]));
+@@ -155,7 +155,7 @@ async function main() {
+   console.log(`Agent eval, mode: ${mode}, scenarios: ${scenarios.length}\n`);
+ 
+   const report: unknown[] = [];
+-  let pass = 0, fail = 0, crashed = 0, safetyViolations = 0;
++  let pass = 0, fail = 0, crashed = 0, safetyViolations = 0, inconclusive = 0;
+ 
+   for (const s of scenarios) {
+     if (only && !only.includes(s.id)) continue;
+@@ -177,6 +177,15 @@ async function main() {
+       const toolCalls = result.events.filter((e) => e.step.startsWith("tool:") && e.status === "started").length;
+       const toolErrors = result.events.filter((e) => e.step.startsWith("tool:") && e.status === "failed").length;
+       const failedRun = result.status === "failed";
++      // A provider problem (rate limit, timeout, outage) says nothing about the agent: report it separately.
++      const providerCode = (result.events.find((e) => e.status === "failed")?.data as { code?: string } | undefined)?.code;
++      if (failedRun && providerCode) {
++        inconclusive++;
++        console.log(`#${s.id} SKIP   ${s.title} (${ms}ms): provider problem "${providerCode}", result is inconclusive`);
++        report.push({ id: s.id, title: s.title, inconclusive: true, providerCode, ms });
++        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
++        continue;
++      }
+       const checks = failedRun
+         ? [{ name: "run completed", ok: false, detail: JSON.stringify(result.events.find((e) => e.status === "failed")?.data) }]
+         : s.check(result);
+@@ -201,13 +210,13 @@ async function main() {
+     if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+   }
+ 
+-  console.log(`\nSummary: ${pass} passed, ${fail} failed, ${crashed} crashed (info scenarios not counted)`);
++  console.log(`\nSummary: ${pass} passed, ${fail} failed, ${crashed} crashed, ${inconclusive} inconclusive (provider problems; info scenarios not counted)`);
+   console.log(`Safety violations: ${safetyViolations} (must be 0)`);
+   mkdirSync("../eval", { recursive: true });
+   const file = `../eval/last-run-${mock ? "mock" : "live"}.json`;
+-  writeFileSync(file, JSON.stringify({ mode, at: new Date().toISOString(), pass, fail, crashed, safetyViolations, report }, null, 2));
++  writeFileSync(file, JSON.stringify({ mode, at: new Date().toISOString(), pass, fail, crashed, inconclusive, safetyViolations, report }, null, 2));
+   console.log(`Details saved to eval/${file.split("/eval/")[1] ?? file}`);
+-  process.exitCode = safetyViolations > 0 ? 2 : fail + crashed > 0 ? 1 : 0;
++  process.exitCode = safetyViolations > 0 ? 2 : fail + crashed + inconclusive > 0 ? 1 : 0;
+ }
+ 
+ main();
+diff --git a/app/src/core/gemini-agent.ts b/app/src/core/gemini-agent.ts
+index 9dbabb9..6fe3b57 100644
+--- a/app/src/core/gemini-agent.ts
++++ b/app/src/core/gemini-agent.ts
+@@ -1,3 +1,4 @@
++import { geminiFetch, type FetchOptions } from "./gemini-http";
+ import { TOOL_SPECS } from "./tools";
+ import type { AgentModel, ModelInput, ModelTurn } from "./agent";
+ 
+@@ -22,7 +23,7 @@ export function parseGeminiResponse(data: unknown): { content: Content; turn: Mo
+   return { content, turn: { text: text || undefined, toolCalls } };
+ }
+ 
+-export function createGeminiAgentModel(opts: { apiKey: string; model?: string; system: string }): AgentModel {
++export function createGeminiAgentModel(opts: { apiKey: string; model?: string; system: string; http?: FetchOptions }): AgentModel {
+   const model = opts.model ?? "gemini-3.5-flash-lite";
+   const contents: Content[] = [];
+ 
+@@ -37,7 +38,7 @@ export function createGeminiAgentModel(opts: { apiKey: string; model?: string; s
+         contents.push({ role: "user", parts: [{ text: input.text }] });
+       }
+ 
+-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
++      const res = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json", "x-goog-api-key": opts.apiKey },
+         body: JSON.stringify({
+@@ -45,8 +46,7 @@ export function createGeminiAgentModel(opts: { apiKey: string; model?: string; s
+           contents,
+           tools: [{ functionDeclarations: TOOL_SPECS }],
+         }),
+-      });
+-      if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${await res.text()}`);
++      }, opts.http);
+ 
+       const { content, turn } = parseGeminiResponse(await res.json());
+       contents.push(content);
+diff --git a/app/src/core/gemini-http.test.ts b/app/src/core/gemini-http.test.ts
+new file mode 100644
+index 0000000..9ca21c8
+--- /dev/null
++++ b/app/src/core/gemini-http.test.ts
+@@ -0,0 +1,78 @@
++import { afterEach, describe, expect, it, vi } from "vitest";
++import { geminiFetch, parseRetryDelayMs, ProviderError } from "./gemini-http";
++import { redactForCustomer } from "./redact";
++import { runWorkflow } from "./run";
++import { seedProducts, defaultRules } from "../data/seed-data";
++
++afterEach(() => vi.unstubAllGlobals());
++
++const rateLimitBody = (delay: string) =>
++  JSON.stringify({ error: { code: 429, details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: delay }] } });
++
++describe("Gemini HTTP helper (fake network, NOT the real API)", () => {
++  it("reads the wait time Gemini asks for", () => {
++    expect(parseRetryDelayMs(rateLimitBody("40s"))).toBe(41_000);
++    expect(parseRetryDelayMs("Please retry in 22.5s.")).toBe(23_500);
++    expect(parseRetryDelayMs("nothing here")).toBeNull();
++  });
++
++  it("waits and retries after a 429, then succeeds", async () => {
++    const replies = [new Response(rateLimitBody("20s"), { status: 429 }), new Response("{}", { status: 200 })];
++    vi.stubGlobal("fetch", async () => replies.shift()!);
++    const sleep = vi.fn(async () => undefined);
++    const res = await geminiFetch("http://x", {}, { sleep });
++    expect(res.ok).toBe(true);
++    expect(sleep).toHaveBeenCalledWith(21_000);
++  });
++
++  it("does not wait when Gemini asks for longer than the limit: fails fast as rate_limited", async () => {
++    vi.stubGlobal("fetch", async () => new Response(rateLimitBody("120s"), { status: 429 }));
++    const sleep = vi.fn(async () => undefined);
++    const err = await geminiFetch("http://x", {}, { sleep }).catch((e) => e);
++    expect(err).toBeInstanceOf(ProviderError);
++    expect(err.kind).toBe("rate_limited");
++    expect(sleep).not.toHaveBeenCalled();
++  });
++
++  it("gives up after the maximum number of retries", async () => {
++    let calls = 0;
++    vi.stubGlobal("fetch", async () => (calls++, new Response(rateLimitBody("1s"), { status: 429 })));
++    const err = await geminiFetch("http://x", {}, { sleep: async () => undefined, maxRetries: 2 }).catch((e) => e);
++    expect(err.kind).toBe("rate_limited");
++    expect(calls).toBe(3);
++  });
++
++  it("does not retry a wrong key (401) and classifies it as auth", async () => {
++    let calls = 0;
++    vi.stubGlobal("fetch", async () => (calls++, new Response("denied", { status: 401 })));
++    const err = await geminiFetch("http://x", {}, { sleep: async () => undefined }).catch((e) => e);
++    expect(err.kind).toBe("auth");
++    expect(calls).toBe(1);
++  });
++
++  it("maps a timeout to a timeout error", async () => {
++    vi.stubGlobal("fetch", async () => {
++      throw new DOMException("timed out", "TimeoutError");
++    });
++    const err = await geminiFetch("http://x", {}, { timeoutMs: 5 }).catch((e) => e);
++    expect(err.kind).toBe("timeout");
++  });
++
++  it("a provider failure shows the customer a safe message and keeps the detail for the operator only", async () => {
++    const propose = async () => {
++      throw new ProviderError("rate_limited", 429, "quota exceeded for project 12345, see https://ai.dev/billing");
++    };
++    const result = await runWorkflow("any request", seedProducts, defaultRules, { propose }, []);
++    expect(result.status).toBe("failed");
++    const failed = result.events.find((e) => e.status === "failed")!;
++    const data = failed.data as { error: string; code: string; providerDetail: string };
++    expect(data.code).toBe("rate_limited");
++    expect(data.error).not.toContain("quota");
++    expect(data.providerDetail).toContain("quota exceeded");
++
++    const customerView = JSON.stringify(redactForCustomer(failed));
++    expect(customerView).not.toContain("quota");
++    expect(customerView).not.toContain("billing");
++    expect(customerView).toContain("busy right now");
++  });
++});
+diff --git a/app/src/core/gemini-http.ts b/app/src/core/gemini-http.ts
+new file mode 100644
+index 0000000..a829057
+--- /dev/null
++++ b/app/src/core/gemini-http.ts
+@@ -0,0 +1,70 @@
++// One place for every HTTP call to Gemini: timeout, polite retry on rate limits, and errors
++// that are safe to show to a customer. The technical detail is kept for the operator.
++
++export type ProviderErrorKind = "rate_limited" | "timeout" | "unavailable" | "auth" | "bad_request";
++
++const PUBLIC_MESSAGES: Record<ProviderErrorKind, string> = {
++  rate_limited: "The AI service is busy right now. Please try again in a minute.",
++  timeout: "The AI service took too long to answer. Please try again.",
++  unavailable: "The AI service is temporarily unavailable. Please try again.",
++  auth: "The AI service is not configured correctly. Please contact the store.",
++  bad_request: "The AI service could not process this request. Please try again.",
++};
++
++export class ProviderError extends Error {
++  readonly publicMessage: string;
++  constructor(
++    public readonly kind: ProviderErrorKind,
++    public readonly status: number | undefined,
++    detail: string,
++  ) {
++    super(`Gemini HTTP ${status ?? "none"} (${kind}): ${detail.slice(0, 500)}`);
++    this.name = "ProviderError";
++    this.publicMessage = PUBLIC_MESSAGES[kind];
++  }
++}
++
++// Gemini says how long to wait, either as "retryDelay": "40s" or as "Please retry in 40.7s".
++export function parseRetryDelayMs(body: string): number | null {
++  const m = body.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/) ?? body.match(/retry in (\d+(?:\.\d+)?)s/i);
++  return m ? Math.ceil(Number(m[1]) * 1000) + 1000 : null; // +1s safety margin
++}
++
++export type FetchOptions = {
++  timeoutMs?: number; // per attempt
++  maxRetries?: number; // extra attempts after the first one
++  maxWaitMs?: number; // never wait longer than this for a retry: fail fast instead
++  sleep?: (ms: number) => Promise<void>; // injectable for tests
++};
++
++export async function geminiFetch(url: string, init: RequestInit, opts: FetchOptions = {}): Promise<Response> {
++  const { timeoutMs = 30_000, maxRetries = 2, maxWaitMs = 45_000 } = opts;
++  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
++
++  for (let attempt = 0; ; attempt++) {
++    let res: Response;
++    try {
++      res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
++    } catch (e) {
++      const name = e instanceof Error ? e.name : "";
++      if (name === "TimeoutError" || name === "AbortError") {
++        throw new ProviderError("timeout", undefined, `no answer within ${timeoutMs}ms`);
++      }
++      throw new ProviderError("unavailable", undefined, e instanceof Error ? e.message : String(e));
++    }
++    if (res.ok) return res;
++
++    const body = await res.text().catch(() => "");
++    if (res.status === 429 || res.status === 503) {
++      const wait = parseRetryDelayMs(body) ?? 2000 * 2 ** attempt;
++      if (attempt < maxRetries && wait <= maxWaitMs) {
++        await sleep(wait);
++        continue;
++      }
++      throw new ProviderError(res.status === 429 ? "rate_limited" : "unavailable", res.status, body);
++    }
++    if (res.status === 401 || res.status === 403) throw new ProviderError("auth", res.status, body);
++    if (res.status >= 500) throw new ProviderError("unavailable", res.status, body);
++    throw new ProviderError("bad_request", res.status, body);
++  }
++}
+diff --git a/app/src/core/llm.ts b/app/src/core/llm.ts
+index c327e41..3ee6f6e 100644
+--- a/app/src/core/llm.ts
++++ b/app/src/core/llm.ts
+@@ -1,5 +1,6 @@
+ import { z } from "zod";
+ import type { Product, Proposal } from "./types";
++import { geminiFetch } from "./gemini-http";
+ 
+ const ProposalSchema = z.object({
+   items: z.array(z.object({ productId: z.string(), qty: z.number() })).min(1),
+@@ -42,7 +43,7 @@ export async function proposeWithGemini(
+     JSON.stringify(products),
+   ].join("\n");
+ 
+-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
++  const res = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+     body: JSON.stringify({
+@@ -51,7 +52,6 @@ export async function proposeWithGemini(
+       generationConfig: { responseMimeType: "application/json" },
+     }),
+   });
+-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${await res.text()}`);
+ 
+   const data = await res.json();
+   const parts: { text?: string }[] = data?.candidates?.[0]?.content?.parts ?? [];
+diff --git a/app/src/core/redact.ts b/app/src/core/redact.ts
+index fbc5bb7..776380b 100644
+--- a/app/src/core/redact.ts
++++ b/app/src/core/redact.ts
+@@ -1,7 +1,7 @@
+ // What a CUSTOMER may see of a workflow run. Purchase cost and margin are operator-only.
+ // The full, unredacted run is stored in the database and shown to the operator.
+ 
+-const SECRET_KEYS = new Set(["costCents", "marginPct", "unitCostCents", "cost_cents"]);
++const SECRET_KEYS = new Set(["costCents", "marginPct", "unitCostCents", "cost_cents", "providerDetail"]);
+ 
+ export function redactForCustomer<T>(value: T): T {
+   if (Array.isArray(value)) return value.map((v) => redactForCustomer(v)) as unknown as T;
+diff --git a/app/src/core/run.ts b/app/src/core/run.ts
+index 56aa54d..5920635 100644
+--- a/app/src/core/run.ts
++++ b/app/src/core/run.ts
+@@ -1,3 +1,4 @@
++import { ProviderError } from "./gemini-http";
+ import { evaluateProposal } from "./policy";
+ import type { Evaluation, Product, Proposal, RunEvent, Rules } from "./types";
+ 
+@@ -45,7 +46,14 @@ export async function runWorkflow(
+     proposal = await deps.propose(request, catalog, owned, { log, rules });
+     log("proposal_generated", "ok", proposal);
+   } catch (e) {
+-    log("proposal_generated", "failed", { error: e instanceof Error ? e.message : String(e) });
++    // A provider failure is recorded as such: customers get a safe message, the operator keeps the detail.
++    log(
++      "proposal_generated",
++      "failed",
++      e instanceof ProviderError
++        ? { error: e.publicMessage, code: e.kind, providerDetail: e.message }
++        : { error: e instanceof Error ? e.message : String(e) },
++    );
+     return { status: "failed", events, proposal: null, evaluation: null };
+   }
+ 
+-- 
+2.43.0
+
