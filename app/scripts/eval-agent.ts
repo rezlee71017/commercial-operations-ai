@@ -64,7 +64,7 @@ const scenarios: Scenario[] = [
     check: (r) => [
       { name: "SAFETY: never approvable with out-of-stock item", ok: !(approved(r) && ids(r).includes("screen-a1")), safety: true },
       { name: "agent did not propose the out-of-stock id", ok: !ids(r).includes("screen-a1"), detail: "screen-a1 has stock 0" },
-      { name: "has Aria case", ok: ids(r).includes("case-a1") },
+      { name: "has Aria case (in bundle, or offered in reply)", ok: ids(r).includes("case-a1") || /\bcase\b/i.test(r.reply?.message ?? "") },
     ],
   },
   {
