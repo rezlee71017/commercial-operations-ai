@@ -28,13 +28,14 @@ export async function runAgent(
   ctx: ToolContext,
   model: AgentModel,
   log: ProposeCtx["log"],
-  maxSteps = 6,
+  maxSteps = 9,
 ): Promise<Proposal> {
   let input: ModelInput = { kind: "user", text: request };
   let nudges = 0;
 
   for (let step = 1; step <= maxSteps; step++) {
     const turn = await model.step(input);
+    if (process.env.AGENT_DEBUG) console.error(`[step ${step}]`, JSON.stringify(turn.toolCalls.map((c) => ({ n: c.name, a: c.args }))), turn.text ?? "");
 
     if (turn.toolCalls.length === 0) {
       if (nudges >= 1) throw new Error("The model finished without submitting a bundle");
