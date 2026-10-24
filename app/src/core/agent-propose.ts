@@ -1,6 +1,8 @@
 import { runAgent } from "./agent";
 import { withPrevious } from "./conversation";
 import { createGeminiAgentModel } from "./gemini-agent";
+import { createGroqAgentModel } from "./groq-agent";
+import { createFallbackAgentModel } from "./fallback-agent";
 import { createMockAgentModel } from "./mock-agent";
 import type { Deps } from "./run";
 
@@ -30,7 +32,22 @@ export function makeAgentPropose(useMock: boolean): Deps["propose"] {
     } else {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-      model = createGeminiAgentModel({ apiKey, model: process.env.GEMINI_MODEL, system: systemPrompt(owned) });
+      const system = systemPrompt(owned);
+      const groqKey = process.env.GROQ_API_KEY;
+      // With a fallback configured, do not wait long for Gemini: switch to Groq quickly.
+      const gemini = createGeminiAgentModel({
+        apiKey,
+        model: process.env.GEMINI_MODEL,
+        system,
+        http: groqKey ? { maxRetries: 0 } : undefined,
+      });
+      model = groqKey
+        ? createFallbackAgentModel(
+            gemini,
+            () => createGroqAgentModel({ apiKey: groqKey, model: process.env.GROQ_MODEL, system }),
+            (reason) => ctx.log("provider_fallback", "ok", { from: "gemini", to: "groq", reason }),
+          )
+        : gemini;
     }
     return runAgent(withPrevious(request, ctx.previous, catalog), { catalog, rules: ctx.rules, owned }, model, ctx.log);
   };

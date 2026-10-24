@@ -35,7 +35,7 @@ export function createFallbackAgentModel(
           } catch {
             throw e; // no fallback configured (e.g. missing key): report the original problem
           }
-          secondary.preload(history);
+          secondary.preload([...history]); // copy: `history` keeps growing after the switch
           onFallback?.(kind);
         }
       }
