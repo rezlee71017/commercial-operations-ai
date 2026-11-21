@@ -6,3 +6,10 @@ node_modules/
 
 # local agent evaluation outputs
 eval/last-run-*.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+ai-service/.env

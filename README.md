@@ -1,171 +1,143 @@
 # Commercial Operations AI
 
-AI-powered platform for intelligent business workflows, sales optimization, and commercial operations automation.
+An AI-assisted commerce platform with two connected experiences on one catalog and one rule set:
 
-> **Status: early development (updated 2026-10-22).** Implemented and unit-tested (64 tests):
-> the policy engine, the workflow runner with recorded events, a mock proposer,
-> customer-owned-product handling, saved runs, approve/reject with transactional
-> execution, the audit log and a public products API that never exposes cost.
-> A live Gemini run (single-call mode) has been recorded end to end by hand; the
-> tool-using agent has not been verified against live Gemini yet.
-> The website is the Figma Make design, mounted at `/`; its screens still use
-> hard-coded demo data and are **not connected to the backend yet**.
-> A feature is only marked `done` after it is implemented **and** tested.
+- **Customer:** an AI shopping assistant that finds, compares and combines consumer-electronics products.
+- **Merchant:** an operations copilot that proposes bundles, checks them against business rules, and executes only after a human approves.
 
-## What it is
+> **Principle: the AI proposes and explains; deterministic code validates and executes.**
+> Prices, stock, margins, discount limits, approvals and execution results never come from a language model.
 
-A web application (mobile-friendly) that turns a customer request or an existing
-order into a **validated, human-approved commercial action**:
+Built as a university project (AI course and software analysis and design course). All demo data is synthetic and labeled `isSynthetic`.
 
-1. Understand the request and find relevant products.
-2. Propose complementary bundles / a quote.
-3. Check stock, compatibility, discount limits and minimum profit margin with
-   **deterministic rules** (never with the LLM).
-4. Explain each recommendation.
-5. Let a human approve, reject or modify it.
-6. Execute the approved action and persist the result with a full audit trail.
+## Status
 
-The UI shows the **real** workflow as it runs (live steps, tool calls, rule
-checks, approvals). Progress is never faked: a step appears as finished only
-after the backend has recorded it.
+A feature is marked done only when it is implemented **and** tested. Test counts are from the last run on this branch:
+web app 123 tests (Vitest), Python service 34 tests (pytest). All tests use mocks; no live provider call is part of the test suite.
 
-### What it is not
+| Area | Status |
+|---|---|
+| Policy engine (stock, compatibility, max discount, min margin) | Done, unit tested |
+| Workflow runner with recorded events, saved runs, audit log | Done, tested |
+| Approve / reject with one transactional execution (stock and order) | Done, tested |
+| Customer API (`/api/products`, `/api/run` stream) with cost and margin redacted | Done, tested |
+| Operator API (summary, inventory, rules, orders, audit) behind a token | Done, tested; real merchant login not built |
+| Follow-up questions (`previousRunId`), clarification replies (`needs_input`) | Done, tested |
+| TypeScript tool-using agent with Gemini, OpenRouter fallback | Done, tested with mocks. Gemini was verified live earlier; **OpenRouter has not been run live yet** |
+| Provider connection check (`npm run check:llm`) | Done, tested with mocks; run it with your keys |
+| Python AI service: providers, router, read-only LangGraph shopping agent, FastAPI | Done, tested with mocks; **not called by the web app yet, not run against live providers** |
+| Agent evaluation harness (`npm run eval:agent`) | Done. Recorded runs: best 9 pass and 4 inconclusive, latest 3 pass and 9 inconclusive (free-tier limits). Inconclusive is never counted as a pass; reliability is **not** proven yet |
+| Figma Make website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Mockup**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. Type-checks, builds and renders inside Next.js |
+| Supabase hosted database | Code path exists (`DATABASE_URL`); not connected to a real project |
+| Merchant and customer authentication, carts, checkout | Planned |
+| RAG (documents, policies), Ragas evaluation, comparison and compatibility features in the agent | Planned |
 
-Not a generic CRM, not a chatbot with decorative cards, not a collection of
-unrelated AI features. It is a decision-and-action layer with controlled execution.
-
-## Research question (AI course)
-
-> Does a deterministic constraint layer on top of an LLM agent remove invalid
-> commercial actions without reducing recommendation quality?
-
-Compared systems: (A) non-LLM baseline, (B) LLM agent without the policy layer,
-(C) LLM agent with the policy layer.
-
-## MVP scope
-
-| # | Capability | Status |
-|---|---|---|
-| 1 | Import demo data (products, inventory, orders, prices) from CSV/JSON; mark records as synthetic or real | partial (synthetic catalog and rules in a Postgres-compatible database; CSV/JSON import planned) |
-| 2 | Submit a customer request or select an existing order | partial (request text only; order selection planned) |
-| 3 | Bundle / quote recommendation with explanations | partial (LLM or mock proposer; no recommender or baseline yet) |
-| 4 | Policy engine: stock, compatibility, discount limit, minimum margin | done (unit tested) |
-| 5 | Agent workflow with real tool calls (search, stock, margin calculation, draft quote) | in progress (tool-using agent tested with a scripted model and a mock; not yet verified against live Gemini) |
-| 6 | Live run timeline (steps, tool inputs/outputs, rule results) | in progress (live step events; tool calls not yet) |
-| 7 | Human approval: approve / reject / modify / retry / cancel | partial (approve and reject work and are tested; modify, retry, cancel planned; no login yet) |
-| 8 | Execution in the demo environment + persisted result | done (tested): one transaction removes stock and creates the order |
-| 9 | Audit log of decisions and status transitions | done (tested) |
-| 10 | Offline evaluation with repeatable scenarios | planned |
-| 11 | Storefront and operator/owner screens (Figma Make design) | partial (design mounted at `/` with demo data; `GET /api/products` done and tested; screens not wired to the backend) |
-| 12 | Customer shopping assistant: goal-first, structured results (cards, comparison, bundles), no cost or margin shown | planned |
-
-**Out of scope for the MVP** (possible later): supplier sourcing and negotiation,
-proactive monitoring, long-term memory, image generation, real third-party store
-integration, custom model training.
-
-## Acceptance criteria (MVP)
-
-- [ ] Demo dataset loads and every record is labeled synthetic or real.
-- [ ] A request creates a persisted workflow run with a unique ID.
-- [ ] The timeline reflects real backend events and shows the same history after a page refresh.
-- [ ] All prices, stock levels and margins come from the database or deterministic code, never from the model.
-- [ ] A proposal that violates a rule can never reach the "approvable" state (unit tests with boundary cases; 0 violations across evaluation scenarios).
-- [ ] Modifying a proposal triggers re-validation.
-- [ ] Approving twice does not execute twice (idempotent execution).
-- [ ] Model timeout or invalid output fails visibly with a clear message and no partial execution.
-- [ ] Every run, rule result, approval and execution is visible in the audit log.
-- [ ] The main workflow is usable on a 375 px wide screen.
-- [ ] At least 30 scripted scenarios are evaluated against the baseline and the results are reported honestly.
-- [ ] A public demo is deployed and demo data is clearly labeled.
-
-## Architecture (planned)
+## Architecture
 
 ```mermaid
 flowchart LR
-  UI[Web UI - mobile friendly] --> API[App backend]
-  API --> ORCH[Workflow orchestrator / state machine]
-  ORCH --> AGENT[LLM agent - interprets request, proposes, explains]
-  AGENT --> TOOLS[Tools: product search, stock, margin calc, draft quote]
-  TOOLS --> DB[(Postgres)]
-  ORCH --> POLICY[Policy engine - deterministic rules]
-  POLICY --> DB
-  ORCH --> APPROVAL[Human approval]
-  APPROVAL --> EXEC[Action execution - demo store adapter]
-  ORCH --> EVENTS[(Run events / audit log)]
-  EVENTS --> UI
+  UI[Figma Make website] -.->|not connected yet| API
+  subgraph Web[Next.js app]
+    API[API routes] --> RUN[Workflow runner]
+    RUN --> AGENT[TS tool-using agent]
+    RUN --> POLICY[Policy engine]
+    RUN --> EXEC[Approval and execution]
+    EXEC --> DB[(Postgres: PGlite local, Supabase later)]
+    RUN --> DB
+  end
+  AGENT --> PROV{{Gemini, then OpenRouter}}
+  subgraph Py[Python AI service]
+    FAPI[FastAPI] --> LG[LangGraph shopping agent]
+    LG --> PR[Provider router]
+  end
+  LG -->|public catalog, read only| API
+  PR --> PROV
+  API -.->|planned| FAPI
 ```
 
-Principles:
+Solid lines exist and are tested; dotted lines are planned.
 
-- The LLM interprets, proposes and explains. **Rules and tools decide numbers.**
-- Structured outputs are validated before anything is executed.
-- LLM provider sits behind an interface so it can be swapped (hosted free tier, local model).
-- The store integration is an adapter; the first adapter targets the demo environment.
-
-## Proposed stack (to be confirmed after a short technical spike)
-
-| Layer | Choice |
-|---|---|
-| Frontend | Figma Make design exported to React and mounted in Next.js (TypeScript); the old shadcn template is retired (see `docs/decisions/0005-figma-owns-the-ui.md`) |
-| Backend | Next.js route handlers / server actions |
-| Database | Drizzle ORM + migrations. Local embedded Postgres (PGlite) by default; Supabase Postgres to be connected near the end (`docs/supabase.md`) |
-| Live updates | Persisted run events + Server-Sent Events or Supabase Realtime (polling fallback) |
-| LLM | Provider interface; free-tier hosted model and/or local model |
-| Recommender | Co-occurrence / association rules computed offline (Colab, Python), stored in DB |
-| Tests | Unit tests for rules, Playwright for the end-to-end workflow |
-| Hosting | Vercel Hobby (non-commercial, fine for the academic demo) |
-
-Free-tier limits change often. Re-verify pricing, quotas and regional availability
-before depending on any service.
-
-## Data
-
-- Public retail datasets with permitted usage (e.g. Online Retail II, Olist) as the real core.
-- Synthetic data only for what public datasets lack (cost, stock, expiry, edge cases).
-- Every record carries `source` and `is_synthetic`.
-- Evaluation results on synthetic data are **not** evidence of real business impact.
+Safety boundaries: customer data never contains purchase cost or margin (`core/public.ts`, `core/redact.ts`);
+stock and orders change only in `decideRun` after the rules are re-checked; model output is validated (zod, Pydantic);
+the Python agent is read-only and enforces a customer's budget inside its tools.
 
 ## Repository layout
 
-```
-/app                 Next.js application
-  src/core           business rules, policy engine, agent, workflow runner
-  src/db             schema, repositories, transactional execution
-  src/data           synthetic demo catalog
-  src/design/figma   Figma Make export (the website look)
-  src/app            routes: (figma) site at /, (legacy) old template pages, api/
-  drizzle            SQL migrations
-/docs                decisions (ADRs), Figma integration, Supabase guide, inspiration, design exports
-/eval                evaluation scenarios (planned)
-/notebooks           offline recommender experiments (planned)
-```
+| Path | What is there |
+|---|---|
+| `app/` | Next.js web app: `src/core` (policy, agent, providers), `src/db` (Drizzle, execution), `src/app/api` (routes), `src/design/figma` (website export) |
+| `ai-service/` | Python service (FastAPI, Pydantic, LangGraph): see its README |
+| `docs/` | API reference, decision records, Figma integration and Figma Make prompts, Supabase notes |
+| `eval/` | Recorded agent evaluation results |
+| `AGENTS.md` | Rules for anyone (human or AI) changing this repo |
 
-## Setup
+## Quick start
+
+Requirements: Node.js 20+, Python 3.11+ (only for the AI service).
 
 ```bash
+# Web app with the built-in mock AI (no keys needed)
 cd app
-npm install
-cp ../.env.example .env.local     # then fill in GEMINI_API_KEY (or set LLM_MODE=mock)
-npm test                          # unit tests
-npm run db:check                  # shows which database is used and what is in it
-npm run dev                       # the Figma site is at http://localhost:3000
+npm ci
+cp ../.env.example .env.local        # then set LLM_MODE=mock to run without keys
+npm run db:setup                     # local database in app/.data
+npm run dev                          # http://localhost:3000
+npm test                             # 123 tests
 ```
 
-Environment variables are documented in `.env.example`. Secrets are never committed.
-Using Supabase instead of the local database: see `docs/supabase.md`.
+With real providers, put keys in `app/.env.local` (never commit them) and check them:
+
+```bash
+npm run check:llm                    # both providers that have a key
+npm run check:llm -- gemini          # only Google AI Studio
+npm run check:llm -- openrouter      # only OpenRouter
+npm run eval:agent                   # scenario evaluation against the live model
+```
+
+Python service:
+
+```bash
+cd ai-service
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m pytest                     # 34 tests
+uvicorn app.main:app --reload --port 8000
+```
+
+## Configuration
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key and model (default `gemini-3.5-flash-lite`) |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODELS` | OpenRouter key; default model is the `openrouter/free` router |
+| `LLM_PROVIDER=openrouter` | Use OpenRouter only (default: Gemini with OpenRouter as fallback when its key is set) |
+| `LLM_MODE=mock`, `AGENT_MODE=tools` | Built-in test double; tool-using agent mode |
+| `DATABASE_URL` | Hosted Postgres (for example Supabase pooler). Empty means the local database |
+| `OPERATOR_TOKEN` | Required in production for operator endpoints |
+| `AI_SERVICE_TOKEN`, `NEXT_API_URL`, `LLM_PROVIDERS` | Python service: shared secret, where the web app lives, provider order |
+
+Free-tier limits: OpenRouter free models allow about 20 requests per minute and a small daily cap, and free model ids rotate.
+Gemini free-tier limits change often. Neither is production-grade; re-check before relying on them and send only synthetic data.
+
+## Research question (AI course)
+
+> Does a deterministic constraint layer on top of an LLM agent remove invalid commercial actions without reducing recommendation quality?
+
+Compared systems: (A) a non-LLM baseline, (B) an LLM agent without the policy layer, (C) an LLM agent with the policy layer.
+The baseline and the B/C comparison are not built yet.
 
 ## Roadmap
 
-1. Done: foundation, schema, seed data, policy engine, saved runs, approval and execution
-2. Now: Figma-based website. Redesign for the real catalog (phones, laptops, accessories), then wire each screen to the real API through adapters
-3. Customer shopping assistant (goal-first, structured results) on top of the same agent and policy engine
-4. Verify the tool-using agent on live Gemini; add modify/retry/cancel with re-validation
-5. Login for the merchant workspace, then connect Supabase (dedicated project) and test on it
-6. Offline evaluation (30+ scenarios) and the report
-7. Later: proactive monitoring, memory, what-if simulation
+1. Connect the Figma website to the existing API (products first, then the run stream and approvals).
+2. Redesign the website in Figma Make with the prompts in `docs/figma/figma-make-prompts.md`.
+3. Run `npm run check:llm` and the Python service against live providers, then call the Python agent from the web app.
+4. Authentication (merchant login first), then Supabase for real.
+5. Comparison, compatibility and bundle tools in the Python agent; RAG with pgvector; Ragas evaluation.
+6. Evaluation set of 20 to 30 scenarios, baseline comparison, deployment, final documentation.
 
-Design inspiration (Alibaba AI Mode and Accio first, then IntelliCart and Amazon): `docs/inspiration.md`.
+## Documentation
 
-## License
-
-To be decided before the first public release (check licenses of any template or dependency first).
+- `docs/api.md`: endpoints, auth rules, status
+- `docs/decisions/`: why things are built the way they are (0006 covers the Python service and providers)
+- `docs/figma-integration.md` and `docs/figma/figma-make-prompts.md`: website rules and redesign prompts
+- `docs/supabase.md`: hosted database notes

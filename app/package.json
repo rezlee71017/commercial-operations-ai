@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "check:llm": "node scripts/check-llm.mjs",
+    "check:llm": "tsx scripts/check-llm.ts",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx src/db/cli.ts setup",
     "db:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true});console.log('database removed')\"",

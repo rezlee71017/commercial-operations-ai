@@ -1,5 +1,5 @@
 import type { AgentModel, ModelInput, ModelTurn } from "./agent";
-import type { PreloadableModel } from "./groq-agent";
+import type { PreloadableModel } from "./openrouter-agent";
 
 const FALLBACK_KINDS = new Set(["rate_limited", "unavailable", "timeout"]);
 

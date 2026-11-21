@@ -7,23 +7,22 @@ Our code (API, database, AI, adapters) lives outside `src/design/`.
 ## Layout of the app
 - `app/src/app/(figma)/` : root layout and `/` page that mount the Figma site (own `<html>` and CSS).
 - `app/src/app/(legacy)/` : the old template dashboard (`/workflow`, `/inventory`, `/orders`). Temporary: delete each page when a Figma screen replaces it.
-- `app/src/design/figma/FigmaApp.tsx` and `figma.css` : the export.
+- `app/src/design/figma/` : the export. `FigmaApp.tsx` (from `App.tsx`), `components/{shared,store,bundle,ops,owner}`, `data/demo.ts` (all demo data), `types.ts` (named types that mirror the API), `figma.css` (from `index.css`).
 - `app/src/app/api/` : backend routes (unchanged by the design).
 
-## Mechanical changes made to the export (re-apply after every re-export)
-1. `"use client"` added at the top of `FigmaApp.tsx` (it uses React state).
-2. Figma's formatter dropped separators in two inline type literals, which is invalid TypeScript in Next.js:
-   `{ name: string; size?: number }` and `{ product: Product; quantity: number }[]`.
-Nothing else was changed.
+## Re-exporting from Figma Make (checklist)
+1. Copy `src/App.tsx` to `FigmaApp.tsx` and put `"use client"` plus a blank line at the top.
+2. Copy `src/components`, `src/data`, `src/types.ts`, and `src/index.css` (as `figma.css`) over the same paths.
+   Do NOT copy `supabase/`, `utils/`, `.figma/`, `index.html`, `main.tsx` or the Vite config.
+3. Figma's formatter removes `;` inside one-line type literals, which breaks TypeScript. Keep every type multi-line.
+4. Re-apply the CSS fixes below if the new export brings the problems back.
+5. Run `cd app && npx tsc --noEmit && npm test`.
 
-## What is real and what is mock (status as of this commit)
-| Part of the Figma site | Status |
-|---|---|
-| Storefront, cart, bundle builder, operator and owner screens | MOCK: all data is hard-coded in `FigmaApp.tsx` (guitars, amps, ...). Not connected to the backend |
-| `GET /api/products` (public catalog + categories, no cost) | Implemented, tested (no `costCents` in the response) |
-| `POST /api/run`, `GET /api/runs`, `GET /api/runs/[id]`, `POST /api/runs/[id]/decision` | Implemented; runs/decision are now operator-only (token); the customer stream is redacted; not yet used by the Figma UI |
-| `GET /api/operator/{summary,inventory,rules,orders,audit}`, `PUT /api/operator/rules` | Implemented and tested; not yet used by the Figma UI |
-| Typed client `app/src/api/client.ts` | Implemented and tested; the Figma UI should use it |
+## Code fixes made on top of the export (2026-11-19)
+- Text was tiny (61 of 105 font-size rules were 10px or smaller; status badges used 7px). All sizes below 12px were raised to 12px, 12px to 13px and 13px to 14px.
+- Status badges stretched to the height of their row; they now keep their own size (rule at the end of `figma.css`).
+- On phones the "Sign in" button was hidden together with the demo badge, so the merchant area was unreachable; it is visible again.
+- `types.ts` had four one-line type literals without separators; they are now multi-line.
 
 ## Backend contract the Figma UI must use
 - `POST /api/run` body `{ request: string, owned?: string[] }` answers with NDJSON (`application/x-ndjson`), one workflow event per line.

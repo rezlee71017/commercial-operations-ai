@@ -6,6 +6,7 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 - Web app: Next.js + TypeScript in `app/`.
 - Tests: `cd app && npm test` (Vitest). Run them before saying a task is done.
 - Core logic: `app/src/core/`. Database and execution: `app/src/db/`. Demo data: `app/src/data/`.
+- Python AI service: `ai-service/` (FastAPI, Pydantic, LangGraph). Tests: `cd ai-service && python -m pytest`.
 - UI: the Figma Make export in `app/src/design/figma/` (see `docs/figma-integration.md`). Our own adapters and API clients live outside that folder.
 
 ## Non-negotiable rules
@@ -22,8 +23,12 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 11. Database schema changes go through Drizzle migrations (`npm run db:generate`), never by editing tables by hand in the Supabase dashboard.
 12. `POST /api/runs/[id]/decision` must require a signed-in merchant before any public deployment.
 
+13. LLM providers are Gemini (Google AI Studio) and OpenRouter. Do not add Groq. Provider code stays separate from business logic, keys stay server-side, and every provider call has a timeout and bounded retries (`docs/decisions/0006-python-ai-service-and-providers.md`).
+14. The Python agent is advisory and read-only. It never changes prices, stock, rules or approvals; those go through the TypeScript policy engine and `decideRun`.
+
 ## Working style
 - One task = one GitHub Issue = one branch. Keep diffs small; do not touch unrelated files.
 - New business rule => new unit test, including a boundary case.
 - Prefer the simplest solution; add a dependency only when it clearly pays for itself.
 - Big decisions get a short note in `docs/decisions/`.
+- Edit files directly on a branch. Do not commit `.patch`/`.diff` files, backups, logs or generated reports.
