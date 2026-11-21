@@ -1,7 +1,7 @@
 import { runAgent } from "./agent";
 import { withPrevious } from "./conversation";
 import { createGeminiAgentModel } from "./gemini-agent";
-import { createGroqAgentModel } from "./groq-agent";
+import { createOpenRouterAgentModel } from "./openrouter-agent";
 import { createFallbackAgentModel } from "./fallback-agent";
 import { createMockAgentModel } from "./mock-agent";
 import type { Deps } from "./run";
@@ -30,29 +30,35 @@ export function makeAgentPropose(useMock: boolean): Deps["propose"] {
     if (useMock) {
       model = createMockAgentModel(catalog, owned);
     } else {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
       const system = systemPrompt(owned);
-      if (process.env.LLM_PROVIDER === "groq") {
-        const key = process.env.GROQ_API_KEY;
-        if (!key) throw new Error("GROQ_API_KEY is not set");
-        return runAgent(withPrevious(request, ctx.previous, catalog), { catalog, rules: ctx.rules, owned }, createGroqAgentModel({ apiKey: key, model: process.env.GROQ_MODEL, system }), ctx.log);
-      }
-      const groqKey = process.env.GROQ_API_KEY;
-      // With a fallback configured, do not wait long for Gemini: switch to Groq quickly.
-      const gemini = createGeminiAgentModel({
-        apiKey,
-        model: process.env.GEMINI_MODEL,
+      const orKey = process.env.OPENROUTER_API_KEY;
+      const orOpts = {
+        model: process.env.OPENROUTER_MODEL,
+        fallbackModels: (process.env.OPENROUTER_FALLBACK_MODELS ?? "").split(",").map((m) => m.trim()),
         system,
-        http: groqKey ? { maxRetries: 0 } : undefined,
-      });
-      model = groqKey
-        ? createFallbackAgentModel(
-            gemini,
-            () => createGroqAgentModel({ apiKey: groqKey, model: process.env.GROQ_MODEL, system }),
-            (reason) => ctx.log("provider_fallback", "ok", { from: "gemini", to: "groq", reason }),
-          )
-        : gemini;
+      };
+      if (process.env.LLM_PROVIDER === "openrouter") {
+        // OpenRouter only (for example to test it on its own).
+        if (!orKey) throw new Error("OPENROUTER_API_KEY is not set");
+        model = createOpenRouterAgentModel({ apiKey: orKey, ...orOpts });
+      } else {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
+        // With a fallback configured, do not wait long for Gemini: switch to OpenRouter quickly.
+        const gemini = createGeminiAgentModel({
+          apiKey,
+          model: process.env.GEMINI_MODEL,
+          system,
+          http: orKey ? { maxRetries: 0 } : undefined,
+        });
+        model = orKey
+          ? createFallbackAgentModel(
+              gemini,
+              () => createOpenRouterAgentModel({ apiKey: orKey, ...orOpts }),
+              (reason) => ctx.log("provider_fallback", "ok", { from: "gemini", to: "openrouter", reason }),
+            )
+          : gemini;
+      }
     }
     return runAgent(withPrevious(request, ctx.previous, catalog), { catalog, rules: ctx.rules, owned }, model, ctx.log);
   };

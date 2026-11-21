@@ -22,13 +22,13 @@ function toJsonSchema(v: unknown): unknown {
   return v;
 }
 
-export function parseGroqResponse(data: unknown): ModelTurn {
+export function parseChatCompletion(data: unknown): ModelTurn {
   const msg = (
     data as {
       choices?: { message?: { content?: string | null; tool_calls?: { function?: { name?: string; arguments?: string } }[] } }[];
     }
   )?.choices?.[0]?.message;
-  if (!msg) throw new Error("Groq returned no message");
+  if (!msg) throw new Error("The model returned no message");
   const toolCalls = (msg.tool_calls ?? [])
     .filter((c) => c.function?.name)
     .map((c) => {
@@ -44,8 +44,21 @@ export function parseGroqResponse(data: unknown): ModelTurn {
   return { text: text || undefined, toolCalls };
 }
 
-export function createGroqAgentModel(opts: { apiKey: string; model?: string; system: string; http?: FetchOptions }): PreloadableModel {
-  const model = opts.model ?? "openai/gpt-oss-120b";
+// OpenRouter free model ids rotate with little notice, so the default is the free router, which
+// picks a currently free model that supports tool calling. Set OPENROUTER_MODEL for a fixed model and
+// OPENROUTER_FALLBACK_MODELS (comma separated) for OpenRouter-side fallbacks.
+export const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+export const OPENROUTER_DEFAULT_MODEL = "openrouter/free";
+
+export function createOpenRouterAgentModel(opts: {
+  apiKey: string;
+  model?: string;
+  fallbackModels?: string[];
+  system: string;
+  http?: FetchOptions;
+}): PreloadableModel {
+  const model = opts.model || OPENROUTER_DEFAULT_MODEL;
+  const fallbacks = (opts.fallbackModels ?? []).filter(Boolean);
   const messages: Msg[] = [{ role: "system", content: opts.system }];
   const tools = (TOOL_SPECS as unknown as { name: string; description?: string; parameters?: unknown }[]).map((t) => ({
     type: "function" as const,
@@ -93,15 +106,26 @@ export function createGroqAgentModel(opts: { apiKey: string; model?: string; sys
     async step(input) {
       pushInput(input);
       const res = await geminiFetch(
-        "https://api.groq.com/openai/v1/chat/completions",
+        OPENROUTER_URL,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
-          body: JSON.stringify({ model, messages, tools, tool_choice: "auto", temperature: 0 }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${opts.apiKey}`,
+            "X-Title": "Commercial Operations AI",
+          },
+          body: JSON.stringify({
+            model,
+            ...(fallbacks.length > 0 ? { models: [model, ...fallbacks] } : {}),
+            messages,
+            tools,
+            tool_choice: "auto",
+            temperature: 0,
+          }),
         },
-        opts.http,
+        { provider: "OpenRouter", ...opts.http },
       );
-      const turn = parseGroqResponse(await res.json());
+      const turn = parseChatCompletion(await res.json());
       pushTurn(turn);
       return turn;
     },

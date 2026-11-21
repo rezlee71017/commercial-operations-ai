@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFallbackAgentModel } from "./fallback-agent";
 import type { AgentModel, ModelTurn } from "./agent";
-import type { PreloadableModel } from "./groq-agent";
+import type { PreloadableModel } from "./openrouter-agent";
 
 const providerError = (kind: string) => Object.assign(new Error(kind), { kind });
 const turn = (name: string): ModelTurn => ({ toolCalls: [{ name, args: {} }] });
@@ -36,7 +36,7 @@ describe("fallback agent", () => {
   it("reports the original error when the secondary cannot be created", async () => {
     const primary: AgentModel = { step: vi.fn().mockRejectedValue(providerError("timeout")) };
     const m = createFallbackAgentModel(primary, () => {
-      throw new Error("GROQ_API_KEY is not set");
+      throw new Error("OPENROUTER_API_KEY is not set");
     });
     await expect(m.step({ kind: "user", text: "hi" })).rejects.toThrow("timeout");
   });

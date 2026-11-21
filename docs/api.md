@@ -35,5 +35,5 @@ Rules that hold for every endpoint
 | `GET /api/operator/orders?limit=`, `GET /api/operator/audit?limit=` | newest first, limit 1-200 |
 
 ## Status (as of this commit)
-- Implemented and tested (104 tests, real handlers on an in-memory database with the mock AI): everything in the tables above, the redaction, the token guard, the typed client's stream reader.
+- Implemented and tested (123 tests in the whole web app at the time of writing, real handlers on an in-memory database with the mock AI): everything in the tables above, the redaction, the token guard, the typed client's stream reader.
 - NOT done: the Figma UI does not call any of this yet (it still shows hard-coded data); no real merchant login; no customer accounts, carts or checkout endpoints; rate limiting; `npm run build` was not verified in the sandbox (no access to Google Fonts), only type-check, lint and tests.
