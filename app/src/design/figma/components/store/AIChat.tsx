@@ -28,7 +28,7 @@ export default function AIChat({ products, cartCount, onNavigate, onAddToCart, o
   ])
   const [nextId, setNextId] = useState(2)
 
-  const productIndex = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
+  const productIndex = useMemo(() => new Map(products.map((product) => [product.id, product] as const)), [products])
 
   const send = (raw = input) => {
     const query = raw.trim()
@@ -37,15 +37,19 @@ export default function AIChat({ products, cartCount, onNavigate, onAddToCart, o
     const budgetMatch = normalized.match(/(?:under|below|less than|budget(?: of)?|up to)\s*\$?([\d,]+)/)
     const budgetCents = budgetMatch ? Number(budgetMatch[1].replace(/,/g, "")) * 100 : Number.POSITIVE_INFINITY
     const terms = normalized.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !["under", "below", "with", "for", "the", "and", "setup", "find", "need", "want", "best", "build"].includes(term))
+    const workIntent = /work|portable|desk/.test(normalized)
+    const audioIntent = /audio|headphone|earbud|commut/.test(normalized)
     const matched = products.filter((product) => {
       const text = `${product.name} ${categoryName(product.category)}`.toLowerCase()
-      const categoryHit = terms.some((term) => text.includes(term))
-      const genericRequest = terms.length === 0 || /setup|work|everyday|commut|portable|desk/.test(normalized)
-      return product.stock > 0 && product.priceCents <= budgetCents && (categoryHit || genericRequest)
+      const categoryHit = terms.some((term) => text.includes(term) || (term === "headphones" && text.includes("headphone")))
+      const workRelated = workIntent && ["laptop", "dock", "sleeve", "stand", "webcam", "mouse", "keyboard"].includes(product.category)
+      const audioRelated = audioIntent && product.category === "audio"
+      const genericRequest = terms.length === 0 || /everyday/.test(normalized)
+      return product.stock > 0 && product.priceCents <= budgetCents && (categoryHit || workRelated || audioRelated || genericRequest)
     }).slice(0, 3)
     const hasIntent = /phone|laptop|charger|cable|audio|headphone|earbud|keyboard|mouse|webcam|watch|power|work|desk|commut|portable|compare|setup/.test(normalized)
     const resultIds = matched.length ? matched.map((product) => product.id) : []
-    const response = !hasIntent && terms.length < 2
+    const response = !hasIntent && terms.length <= 2
       ? "I can narrow this down. What matters most: portability, everyday use, work productivity, or staying within a strict budget?"
       : matched.length
         ? `I found ${matched.length} in-stock catalog option${matched.length === 1 ? "" : "s"} that fit the request and the stated budget. These are catalog-grounded suggestions, not live AI research. I’ll only mark compatibility as confirmed when the catalog explicitly records it.`
