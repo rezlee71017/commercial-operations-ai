@@ -383,3 +383,14 @@ body { background: var(--paper); color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.stock-health { display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 18px; padding: 22px 20px 4px; }
+.stock-donut { width: 124px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; position: relative; }
+.stock-donut:before { content: ""; position: absolute; inset: 13px; border-radius: 50%; background: #192927; }
+.stock-donut > span { z-index: 1; display: flex; flex-direction: column; align-items: center; color: #f5faf7; font: 600 25px "DM Mono"; }
+.stock-donut small { color: #9aada7; font: 10px "DM Mono"; letter-spacing: .12em; }
+.stock-legend { display: grid; gap: 12px; }
+.stock-legend > div { display: grid; grid-template-columns: 9px 1fr 28px; align-items: center; gap: 9px; color: #c7d7d0; font-size: 12px; }
+.stock-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.stock-legend strong { color: #f5faf7; font: 600 12px "DM Mono"; text-align: right; }
+@media (max-width: 760px) { .stock-health { grid-template-columns: 1fr; justify-items: center; } .stock-legend { width: 100%; } }
