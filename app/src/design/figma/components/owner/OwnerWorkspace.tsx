@@ -55,6 +55,14 @@ export default function OwnerWorkspace({
     units: products.filter((product) => product.category === id).reduce((sum, product) => sum + product.stock, 0),
   })).sort((a, b) => b.units - a.units).slice(0, 6)
   const maxCategoryStock = Math.max(1, ...categoryStock.map((item) => item.units))
+  const stockHealth = [
+    { name: "Healthy", count: products.filter((product) => product.stock > 5).length, color: "#14b8a6" },
+    { name: "Low stock", count: lowStock.filter((product) => product.stock > 0).length, color: "#f5c96a" },
+    { name: "Out of stock", count: products.filter((product) => product.stock === 0).length, color: "#ff765e" },
+  ]
+  const stockHealthTotal = Math.max(1, stockHealth.reduce((sum, item) => sum + item.count, 0))
+  const healthyStop = (stockHealth[0].count / stockHealthTotal) * 100
+  const lowStop = healthyStop + (stockHealth[1].count / stockHealthTotal) * 100
   const statusCounts = [
     { name: "Awaiting approval", count: runs.filter((run) => run.status === "awaiting_approval").length, tone: "amber" },
     { name: "Executed / approved", count: runs.filter((run) => run.status === "executed" || run.status === "approved").length, tone: "teal" },
@@ -140,6 +148,10 @@ export default function OwnerWorkspace({
             </section>
             <section className="panel insight-panel status-insight">
               <div className="panel-heading"><div><span className="panel-label">Inventory health</span><h2>Stock exposure</h2></div><span className="status-badge status-awaiting_approval">{lowStock.length} low stock</span></div>
+              <div className="stock-health">
+                <div className="stock-donut" style={{ background: `conic-gradient(#14b8a6 0% ${healthyStop}%, #f5c96a ${healthyStop}% ${lowStop}%, #ff765e ${lowStop}% 100%)` }}><span>{products.length}<small>SKUs</small></span></div>
+                <div className="stock-legend">{stockHealth.map((item) => <div key={item.name}><i style={{ background: item.color }} /><span>{item.name}</span><strong>{item.count}</strong></div>)}</div>
+              </div>
               <div className="stock-summary"><div><strong>{products.reduce((sum, product) => sum + product.stock, 0)}</strong><span>Units on hand</span></div><div><strong>{products.filter((product) => product.stock === 0).length}</strong><span>Out of stock</span></div><div><strong>{products.length}</strong><span>Catalog items</span></div></div>
               <p className="chart-footnote">Counts are calculated directly from the current catalog snapshot.</p>
             </section>
