@@ -17,8 +17,8 @@ It never changes prices, stock, rules or approvals. Those stay in the TypeScript
 | Provider adapters, router, error mapping | Implemented, tested with mock HTTP |
 | LangGraph agent and tools | Implemented, tested with scripted providers |
 | FastAPI endpoints, token auth, input limits | Implemented, tested; server boot checked locally |
-| Live calls to Gemini or OpenRouter | **Not run** (needs your keys) |
-| Called from the Next.js app | **Not yet** |
+| Live calls through this service to Gemini or OpenRouter | **Not run yet** (the TypeScript `check:llm` passed for Gemini) |
+| Called from the Next.js app | Yes: `POST /api/assistant` (tested with a scripted model; not yet with a live one) |
 | RAG (LlamaIndex), Ragas evaluation | Planned (`rag` extra; dependency resolution checked, nothing implemented) |
 
 ## Run
@@ -51,7 +51,7 @@ curl -s localhost:8000/v1/agent/run -H 'content-type: application/json' \
   -d '{"message":"I need a USB-C charger for my laptop","max_budget_dollars":60}'
 ```
 
-The web app must be running (it serves `/api/products`). History sent by a caller is reduced to plain user and
+The web app must be running (it serves `/api/products`). The web app reaches this service through `AI_SERVICE_URL` and `AI_SERVICE_TOKEN`. History sent by a caller is reduced to plain user and
 assistant text; fake tool results and raw provider data are dropped.
 
 ## Design notes

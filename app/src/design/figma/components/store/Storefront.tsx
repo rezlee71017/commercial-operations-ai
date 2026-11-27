@@ -109,6 +109,7 @@ export default function Storefront({
             Shop
           </button>
           <button onClick={() => onNavigate("bundle")}>Smart bundles</button>
+          <button onClick={() => onNavigate("ai")}>AI Mode</button>
         </nav>
         <div className="header-actions">
           <DemoBadge />
@@ -143,7 +144,7 @@ export default function Storefront({
             </h1>
             <p>
               Describe what you need, your budget, and how you’ll use it.
-              Aperture compares real catalog price, stock, and confirmed
+              REZLEE compares real catalog price, stock, and confirmed
               compatibility.
             </p>
             <form

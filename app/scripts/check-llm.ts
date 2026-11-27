@@ -2,24 +2,20 @@
 //   npm run check:llm                 both providers that have a key
 //   npm run check:llm -- gemini       only Google AI Studio
 //   npm run check:llm -- openrouter   only OpenRouter
-import { existsSync, readFileSync } from "node:fs";
-import { checkGemini, checkOpenRouter, formatReport } from "../src/core/provider-check";
+import { loadEnv } from "./load-env";
+import { checkGemini, checkOpenRouter, formatReport, type CheckReport } from "../src/core/provider-check";
 
-if (existsSync(".env.local")) {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const i = line.indexOf("=");
-    if (i < 1) continue;
-    const name = line.slice(0, i).trim();
-    const value = line.slice(i + 1).trim().replace(/^['"]|['"]$/g, "");
-    if (!process.env[name]) process.env[name] = value;
-  }
+async function main(): Promise<void> {
+  loadEnv();
+  const only = process.argv[2];
+  const reports: CheckReport[] = [];
+  if (only !== "openrouter") reports.push(await checkGemini(process.env));
+  if (only !== "gemini" && (only === "openrouter" || process.env.OPENROUTER_API_KEY)) reports.push(await checkOpenRouter(process.env));
+  for (const r of reports) console.log(formatReport(r) + "\n");
+  if (reports.some((r) => !r.ok)) process.exitCode = 1;
 }
 
-const only = process.argv[2];
-const reports = [];
-if (only !== "openrouter") reports.push(await checkGemini(process.env));
-if (only !== "gemini" && (only === "openrouter" || process.env.OPENROUTER_API_KEY)) reports.push(await checkOpenRouter(process.env));
-for (const r of reports) console.log(formatReport(r) + "\n");
-if (reports.some((r) => !r.ok)) process.exit(1);
+main().catch((e) => {
+  console.error("check failed:", e instanceof Error ? e.message : e);
+  process.exitCode = 1;
+});

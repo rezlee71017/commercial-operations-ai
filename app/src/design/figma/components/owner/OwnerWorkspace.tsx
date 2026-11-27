@@ -38,6 +38,7 @@ export default function OwnerWorkspace({
   const [draft, setDraft] = useState(rules)
   const [confirming, setConfirming] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [chartMode, setChartMode] = useState<"inventory" | "runs">("inventory")
   const lowStock = products.filter((product) => product.stock <= 5)
   const approvalCount = runs.filter(
     (run) => run.status === "awaiting_approval",
@@ -49,6 +50,25 @@ export default function OwnerWorkspace({
       ),
     [category, products],
   )
+  const categoryStock = categories.map(([id, name]) => ({
+    name,
+    units: products.filter((product) => product.category === id).reduce((sum, product) => sum + product.stock, 0),
+  })).sort((a, b) => b.units - a.units).slice(0, 6)
+  const maxCategoryStock = Math.max(1, ...categoryStock.map((item) => item.units))
+  const stockHealth = [
+    { name: "Healthy", count: products.filter((product) => product.stock > 5).length, color: "#14b8a6" },
+    { name: "Low stock", count: lowStock.filter((product) => product.stock > 0).length, color: "#f5c96a" },
+    { name: "Out of stock", count: products.filter((product) => product.stock === 0).length, color: "#ff765e" },
+  ]
+  const stockHealthTotal = Math.max(1, stockHealth.reduce((sum, item) => sum + item.count, 0))
+  const healthyStop = (stockHealth[0].count / stockHealthTotal) * 100
+  const lowStop = healthyStop + (stockHealth[1].count / stockHealthTotal) * 100
+  const statusCounts = [
+    { name: "Awaiting approval", count: runs.filter((run) => run.status === "awaiting_approval").length, tone: "amber" },
+    { name: "Executed / approved", count: runs.filter((run) => run.status === "executed" || run.status === "approved").length, tone: "teal" },
+    { name: "Rejected / blocked", count: runs.filter((run) => run.status === "rejected" || run.status === "rejected_by_policy").length, tone: "coral" },
+    { name: "Running / failed", count: runs.filter((run) => run.status === "running" || run.status === "failed" || run.status === "needs_input").length, tone: "muted" },
+  ]
   const invalid =
     draft.minMarginPct < 0 ||
     draft.minMarginPct > 95 ||
@@ -108,6 +128,33 @@ export default function OwnerWorkspace({
               </strong>
               <small>Catalog products</small>
             </article>
+          </div>
+          <div className="insight-grid">
+            <section className="panel insight-panel">
+              <div className="panel-heading">
+                <div><span className="panel-label">Live catalog snapshot</span><h2>Operational pulse</h2></div>
+                <div className="chart-tabs" role="group" aria-label="Choose chart"><button className={chartMode === "inventory" ? "active" : ""} onClick={() => setChartMode("inventory")}>Stock by category</button><button className={chartMode === "runs" ? "active" : ""} onClick={() => setChartMode("runs")}>Run outcomes</button></div>
+              </div>
+              {chartMode === "inventory" ? (
+                <div className="bar-chart" role="list" aria-label="Units in stock by category">
+                  {categoryStock.map((item) => <div className="bar-row" role="listitem" key={item.name}><span>{item.name}</span><div className="bar-track"><i style={{ width: `${(item.units / maxCategoryStock) * 100}%` }} /></div><strong>{item.units}</strong></div>)}
+                </div>
+              ) : (
+                <div className="bar-chart" role="list" aria-label="Workflow counts by status">
+                  {statusCounts.map((item) => <div className="bar-row" role="listitem" key={item.name}><span>{item.name}</span><div className="bar-track"><i className={item.tone} style={{ width: `${(item.count / Math.max(1, runs.length)) * 100}%` }} /></div><strong>{item.count}</strong></div>)}
+                </div>
+              )}
+              <p className="chart-footnote">Derived from the current synthetic catalog and workflow records. No revenue forecast or live analytics is implied.</p>
+            </section>
+            <section className="panel insight-panel status-insight">
+              <div className="panel-heading"><div><span className="panel-label">Inventory health</span><h2>Stock exposure</h2></div><span className="status-badge status-awaiting_approval">{lowStock.length} low stock</span></div>
+              <div className="stock-health">
+                <div className="stock-donut" style={{ background: `conic-gradient(#14b8a6 0% ${healthyStop}%, #f5c96a ${healthyStop}% ${lowStop}%, #ff765e ${lowStop}% 100%)` }}><span>{products.length}<small>SKUs</small></span></div>
+                <div className="stock-legend">{stockHealth.map((item) => <div key={item.name}><i style={{ background: item.color }} /><span>{item.name}</span><strong>{item.count}</strong></div>)}</div>
+              </div>
+              <div className="stock-summary"><div><strong>{products.reduce((sum, product) => sum + product.stock, 0)}</strong><span>Units on hand</span></div><div><strong>{products.filter((product) => product.stock === 0).length}</strong><span>Out of stock</span></div><div><strong>{products.length}</strong><span>Catalog items</span></div></div>
+              <p className="chart-footnote">Counts are calculated directly from the current catalog snapshot.</p>
+            </section>
           </div>
           <div className="owner-grid">
             <section className="panel overview-runs">

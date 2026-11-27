@@ -13,7 +13,7 @@ Built as a university project (AI course and software analysis and design course
 ## Status
 
 A feature is marked done only when it is implemented **and** tested. Test counts are from the last run on this branch:
-web app 123 tests (Vitest), Python service 34 tests (pytest). All tests use mocks; no live provider call is part of the test suite.
+web app 136 tests (Vitest), Python service 34 tests (pytest). All tests use mocks; no live provider call is part of the test suite.
 
 | Area | Status |
 |---|---|
@@ -23,11 +23,12 @@ web app 123 tests (Vitest), Python service 34 tests (pytest). All tests use mock
 | Customer API (`/api/products`, `/api/run` stream) with cost and margin redacted | Done, tested |
 | Operator API (summary, inventory, rules, orders, audit) behind a token | Done, tested; real merchant login not built |
 | Follow-up questions (`previousRunId`), clarification replies (`needs_input`) | Done, tested |
-| TypeScript tool-using agent with Gemini, OpenRouter fallback | Done, tested with mocks. Gemini was verified live earlier; **OpenRouter has not been run live yet** |
+| TypeScript tool-using agent with Gemini, OpenRouter fallback | Done, tested with mocks. `npm run check:llm` passed live for Gemini (key, model list, generation, tool calling); **OpenRouter has not been checked live yet** |
 | Provider connection check (`npm run check:llm`) | Done, tested with mocks; run it with your keys |
-| Python AI service: providers, router, read-only LangGraph shopping agent, FastAPI | Done, tested with mocks; **not called by the web app yet, not run against live providers** |
+| Python AI service: providers, router, read-only LangGraph shopping agent, FastAPI | Done, tested with mocks |
+| `POST /api/assistant`: web app to Python service to catalog tools (rate limited, token protected) | Done. Tested with mocks and once end to end locally with a scripted model. **Not yet run with a live model through the Python service** |
 | Agent evaluation harness (`npm run eval:agent`) | Done. Recorded runs: best 9 pass and 4 inconclusive, latest 3 pass and 9 inconclusive (free-tier limits). Inconclusive is never counted as a pass; reliability is **not** proven yet |
-| Figma Make website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Mockup**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. Type-checks, builds and renders inside Next.js |
+| Website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Temporary mockup, being replaced**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. A new Figma Make design is being made (`docs/figma/figma-make-prompts.md`) |
 | Supabase hosted database | Code path exists (`DATABASE_URL`); not connected to a real project |
 | Merchant and customer authentication, carts, checkout | Planned |
 | RAG (documents, policies), Ragas evaluation, comparison and compatibility features in the agent | Planned |
@@ -52,10 +53,10 @@ flowchart LR
   end
   LG -->|public catalog, read only| API
   PR --> PROV
-  API -.->|planned| FAPI
+  API -->|POST /api/assistant| FAPI
 ```
 
-Solid lines exist and are tested; dotted lines are planned.
+Solid lines exist and are tested; the dotted line (website to API) is not built yet.
 
 Safety boundaries: customer data never contains purchase cost or margin (`core/public.ts`, `core/redact.ts`);
 stock and orders change only in `decideRun` after the rules are re-checked; model output is validated (zod, Pydantic);
@@ -82,7 +83,7 @@ npm ci
 cp ../.env.example .env.local        # then set LLM_MODE=mock to run without keys
 npm run db:setup                     # local database in app/.data
 npm run dev                          # http://localhost:3000
-npm test                             # 123 tests
+npm test                             # 136 tests
 ```
 
 With real providers, put keys in `app/.env.local` (never commit them) and check them:
@@ -129,8 +130,8 @@ The baseline and the B/C comparison are not built yet.
 ## Roadmap
 
 1. Connect the Figma website to the existing API (products first, then the run stream and approvals).
-2. Redesign the website in Figma Make with the prompts in `docs/figma/figma-make-prompts.md`.
-3. Run `npm run check:llm` and the Python service against live providers, then call the Python agent from the web app.
+2. Replace the temporary website with a new Figma Make design (editorial, photo-led storefront plus merchant workspace) using `docs/figma/figma-make-prompts.md`.
+3. Run the Python service with a live model (Gemini, then OpenRouter) and measure it with an evaluation set.
 4. Authentication (merchant login first), then Supabase for real.
 5. Comparison, compatibility and bundle tools in the Python agent; RAG with pgvector; Ragas evaluation.
 6. Evaluation set of 20 to 30 scenarios, baseline comparison, deployment, final documentation.
