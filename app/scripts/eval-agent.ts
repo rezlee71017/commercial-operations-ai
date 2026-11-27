@@ -12,12 +12,9 @@ import { runWorkflow, type RunResult } from "../src/core/run";
 import { makeAgentPropose } from "../src/core/agent-propose";
 import type { PreviousTurn } from "../src/core/conversation";
 import { seedProducts, defaultRules } from "../src/data/seed-data";
+import { loadEnv } from "./load-env";
 
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  /* no .env.local: fine in mock mode */
-}
+loadEnv(); // app/.env and app/.env.local; fine without them in mock mode
 
 const mock = process.env.LLM_MODE === "mock";
 const delayMs = Number(process.env.EVAL_DELAY_MS ?? (mock ? 0 : 4000));

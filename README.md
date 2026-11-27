@@ -27,7 +27,7 @@ web app 123 tests (Vitest), Python service 34 tests (pytest). All tests use mock
 | Provider connection check (`npm run check:llm`) | Done, tested with mocks; run it with your keys |
 | Python AI service: providers, router, read-only LangGraph shopping agent, FastAPI | Done, tested with mocks; **not called by the web app yet, not run against live providers** |
 | Agent evaluation harness (`npm run eval:agent`) | Done. Recorded runs: best 9 pass and 4 inconclusive, latest 3 pass and 9 inconclusive (free-tier limits). Inconclusive is never counted as a pass; reliability is **not** proven yet |
-| Figma Make website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Mockup**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. Type-checks, builds and renders inside Next.js |
+| Website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Temporary mockup, being replaced**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. A new Figma Make design is being made (`docs/figma/figma-make-prompts.md`) |
 | Supabase hosted database | Code path exists (`DATABASE_URL`); not connected to a real project |
 | Merchant and customer authentication, carts, checkout | Planned |
 | RAG (documents, policies), Ragas evaluation, comparison and compatibility features in the agent | Planned |
@@ -129,7 +129,7 @@ The baseline and the B/C comparison are not built yet.
 ## Roadmap
 
 1. Connect the Figma website to the existing API (products first, then the run stream and approvals).
-2. Redesign the website in Figma Make with the prompts in `docs/figma/figma-make-prompts.md`.
+2. Replace the temporary website with a new Figma Make design (editorial, photo-led storefront plus merchant workspace) using `docs/figma/figma-make-prompts.md`.
 3. Run `npm run check:llm` and the Python service against live providers, then call the Python agent from the web app.
 4. Authentication (merchant login first), then Supabase for real.
 5. Comparison, compatibility and bundle tools in the Python agent; RAG with pgvector; Ragas evaluation.
