@@ -1,0 +1,625 @@
+status: exited
+stdout file: /figaro/tool-output/bash/0/stdout (52545 bytes)
+stderr file: /figaro/tool-output/bash/0/stderr (0 bytes)
+exit code: 0
+
+OUTPUT TRUNCATED: the head-and-tail previews below are INCOMPLETE; the middle is omitted. Complete output is saved at the stdout/stderr paths above. If your task depends on omitted content, you MUST use `read` on the relevant file and follow its continuation offsets through the required content before generating or changing code. Do not guess or infer omitted content from the preview. Reading with bash again can truncate again.
+
+--- stdout (head + tail; full output in file above) ---
+src/components/shared/Icon.tsx
+src/components/shared/UI.tsx
+src/components/ops/RunDetail.tsx
+src/components/owner/Workspace.tsx
+src/components/store/Storefront.tsx
+src/components/bundle/BundleSection.tsx
+src/App.tsx
+src/main.tsx
+src/types.ts
+src/data/demo.ts
+src/index.css
+src/vite-env.d.ts
+import { useState } from "react"
+import Storefront from "./components/store/Storefront"
+import Workspace from "./components/owner/Workspace"
+import { Modal, Button } from "./components/shared/UI"
+import { products, initialRuns, defaultRules, bundle, checkProposal } from "./data/demo"
+import type { CartLine, Rules, Run } from "./types"
+
+export default function App() {
+  const [merchant, setMerchant] = useState(false)
+  const [gate, setGate] = useState(false)
+  const [cartOpen, setCartOpen] = useState(false)
+  const [cart, setCart] = useState<CartLine[]>([])
+  const [runs, setRuns] = useState(initialRuns)
+  const [rules, setRules] = useState<Rules>(defaultRules)
+  const [notice, setNotice] = useState("")
+  const add = (id: string, price?: number) => {
+    const p = products.find(p => p.id === id)!
+    setCart(lines => {
+      const existing = lines.find(l => l.productId === id && l.unitPriceCents === (price ?? p.priceCents))
+      if (lines.filter(l => l.productId === id).reduce((s, l) => s + l.qty, 0) >= p.stock) return lines
+      return existing ? lines.map(l => l === existing ? { ...l, qty: l.qty + 1 } : l) : [...lines, { productId: id, qty: 1, unitPriceCents: price ?? p.priceCents }]
+    })
+    setCartOpen(true)
+  }
+  const submit = (request: string, failure: boolean) => {
+    const checks = checkProposal(bundle, rules)
+    const now = new Date().toISOString()
+    const next: Run = {
+      id: `RUN-${Date.now()}`, request, proposal: bundle, checks,
+      status: failure ? "failed" : request.trim().length < 12 ? "needs_input" : checks.every(c => c.passed) ? "awaiting_approval" : "rejected_by_policy",
+      createdAt: now,
+      events: ["Read inventory", "Build compatible bundle", "Evaluate policy"].map(step => ({ step, status: failure ? "failed" : "ok", message: failure ? "Simulated provider unavailable" : "Completed using synthetic catalog", at: now })),
+    }
+    setRuns(r => [next, ...r])
+  }
+  const decide = (id: string, status: Run["status"], note: string) => {
+    setRuns(rs => rs.map(r => {
+      if (r.id !== id) return r
+      const checks = checkProposal(r.proposal, rules)
+      const allowed = checks.every(c => c.passed)
+      const finalStatus = status === "executed" && !allowed ? "rejected_by_policy" : status
+      return { ...r, checks, status: finalStatus, events: [...r.events, { step: "Operator decision", status: "ok", message: `${finalStatus}: ${note || "No note"}`, at: new Date().toISOString() }] }
+    }))
+  }
+  return <div className="min-h-screen overflow-x-hidden bg-[#f5f3ee] text-[#141917]">
+    {merchant ? <Workspace products={products} runs={runs} rules={rules} onSaveRules={r => { setRules(r); setNotice("Rules updated for this demo session.") }} onSubmitRequest={submit} onApprove={(id, note) => decide(id, "executed", note)} onReject={(id, note) => decide(id, "rejected", note)} onRetry={id => decide(id, "awaiting_approval", "Retried successfully")} onExit={() => setMerchant(false)} /> :
+      <Storefront products={products} bundle={bundle} cartCount={cart.reduce((s, l) => s + l.qty, 0)} onAddToCart={add} onAddBundle={() => bundle.items.forEach(i => add(i.productId, Math.round(products.find(p => p.id === i.productId)!.priceCents * (1 - bundle.discountPct / 100))))} onOpenCart={() => setCartOpen(true)} onSignIn={() => setGate(true)} />}
+    {gate && <Modal title="A little space for the big picture." onClose={() => setGate(false)}>
+      <p className="my-6 text-slate-600">Merchant demo sign-in. No password, account, or real authentication. Changes last only while this page stays open.</p>
+      <Button onClick={() => { setGate(false); setMerchant(true) }}>Enter demo workspace →</Button>
+    </Modal>}
+    {cartOpen && <Modal title="Your bag" onClose={() => setCartOpen(false)}>
+      <p className="mb-5 text-sm text-slate-600">Demo checkout only. No payment or order will be placed.</p>
+      {!cart.length && <p className="py-12">Your next favorite is out there. Your bag is empty.</p>}
+      {cart.map((l, idx) => <div key={idx} className="flex items-center justify-between gap-4 border-b border-black/10 py-4">
+        <div><p>{products.find(p => p.id === l.productId)?.name}</p><p className="text-sm text-slate-600">{l.qty} × ${(l.unitPriceCents / 100).toFixed(2)}</p></div>
+        <button className="min-h-11 underline" onClick={() => setCart(c => c.filter((_, i) => i !== idx))}>Remove</button>
+      </div>)}
+      <div className="my-6 flex justify-between text-xl"><span>Total</span><strong>${(cart.reduce((s, l) => s + l.qty * l.unitPriceCents, 0) / 100).toFixed(2)}</strong></div>
+      <Button disabled={!cart.length} onClick={() => setNotice("This is a demo. Checkout is not connected to a payment provider.")}>Demo checkout →</Button>
+      {notice && <p role="status" className="mt-4 text-sm">{notice}</p>}
+    </Modal>}
+  </div>
+}
+export type PublicProduct = {
+  id: string
+  name: string
+  category: string
+  priceCents: number
+  stock: number
+  compatibleWith: string[]
+  imageUrl: string
+  isSynthetic: boolean
+}
+export type MerchantProduct = PublicProduct & {
+  costCents: number
+}
+export type RunStatus =
+  | "running"
+  | "needs_input"
+  | "awaiting_approval"
+  | "rejected_by_policy"
+  | "approved"
+  | "executed"
+  | "rejected"
+  | "failed"
+export type RunEvent = {
+  step: string
+  status: "started" | "ok" | "failed"
+  message: string
+  at: string
+}
+export type BundleItem = {
+  productId: string
+  qty: number
+}
+export type Proposal = {
+  items: BundleItem[]
+  discountPct: number
+  explanation: string
+}
+export type RuleCheck = {
+  rule: string
+  passed: boolean
+  detail: string
+}
+export type Rules = {
+  minMarginPct: number
+  maxDiscountPct: number
+}
+export type Run = {
+  id: string
+  request: string
+  status: RunStatus
+  createdAt: string
+  events: RunEvent[]
+  proposal: Proposal
+  checks: RuleCheck[]
+}
+export type CartLine = {
+  productId: string
+  qty: number
+  unitPriceCents: number
+}
+import type { MerchantProduct, Proposal, Rules, Run, RunStatus, RuleCheck } from "../types"
+
+export const photo = (id: string, width = 900) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=85`
+export const heroImage = photo("photo-1498049794561-7780e7231661", 2400)
+const images = [
+  "photo-1505740420928-5e560c06d30e", "photo-1496181133206-80ce9b88a853",
+  "photo-1511707171634-5f897ff02aa9", "photo-1546868871-7041f2a55e12",
+  "photo-1583394838336-acd977736f90", "photo-1517336714731-489689fd1ca8",
+  "photo-1601972599720-36938d4ecd31", "photo-1587829741301-dc798b83add3",
+  "photo-1527864550417-7fd91fc51a46", "photo-1625842268584-8f3296236761",
+  "photo-1551816230-ef5deaed4a26", "photo-1611532736597-de2d4265fba3",
+  "photo-1612815154858-60aa4c59eaa6", "photo-1588872657578-7efd1f1555ed",
+  "photo-1587825140708-dfaf72ae4b04",
+]
+export const categories = ["Audio", "Laptops", "Phones", "Wearables", "Cases", "Screen protectors", "Chargers", "Keyboards", "Mice", "Docks and hubs", "Power banks", "Cables", "Laptop sleeves", "Stands", "Webcams"]
+const names = ["Forma Wireless", "Studio Air 14", "Arc Phone", "Tempo Watch", "Shell Case", "Clear Glass", "Volt 65W", "Type Mechanical", "Glide Mouse", "Connect Hub", "Reserve 10K", "Link USB-C", "Folio Sleeve", "Elevate Stand", "Focus Webcam"]
+const prices = [24900, 129900, 79900, 19900, 2900, 1500, 5900, 12900, 6900, 8900, 4900, 1900, 4900, 7900, 9900]
+export const products: MerchantProduct[] = Array.from({ length: 36 }, (_, i) => {
+  const c = i % categories.length
+  return {
+    id: `p${i}`, name: `${names[c]}${i >= 15 ? i >= 30 ? " Pro" : " II" : ""}`,
+    category: categories[c], priceCents: prices[c] + (i >= 15 ? 1000 : 0),
+    costCents: Math.round(prices[c] * 0.58), stock: i === 17 || i === 20 ? 0 : (i * 7 + 12) % 41,
+    compatibleWith: c >= 4 ? ["p1", "p2"] : [], imageUrl: photo(images[c]), isSynthetic: true,
+  }
+})
+export const featured = [products[0], products[1], products[2], products[3]]
+export const categoryFeatures = [0, 1, 2].map(i => ({ name: categories[i], imageUrl: photo(images[i]), caption: ["Find your quiet.", "Room for your next idea.", "A little more connected."][i] }))
+export const prompts = ["Headphones under $300", "A laptop for creative work", "Upgrade my desk setup"]
+export const defaultRules: Rules = { minMarginPct: 20, maxDiscountPct: 15 }
+export const bundle: Proposal = {
+  items: [{ productId: "p1", qty: 1 }, { productId: "p7", qty: 1 }, { productId: "p8", qty: 1 }],
+  discountPct: 10,
+  explanation: "A considered desk setup: a lightweight laptop, tactile keyboard, and everyday mouse. Accessory compatibility with Studio Air 14 is explicitly recorded in this demo catalog.",
+}
+export const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100)
+export function checkProposal(p: Proposal, rules: Rules): RuleCheck[] {
+  const items = p.items.map(i => ({ ...products.find(p => p.id === i.productId)!, qty: i.qty }))
+  const revenue = Math.round(items.reduce((s, i) => s + i.priceCents * i.qty, 0) * (1 - p.discountPct / 100))
+  const cost = items.reduce((s, i) => s + i.costCents * i.qty, 0)
+  const margin = (revenue - cost) / revenue * 100
+  return [
+    { rule: "Margin", passed: margin >= rules.minMarginPct, detail: `${margin.toFixed(1)}% ≥ ${rules.minMarginPct}% minimum` },
+    { rule: "Discount", passed: p.discountPct <= rules.maxDiscountPct, detail: `${p.discountPct}% ≤ ${rules.maxDiscountPct}% maximum` },
+    { rule: "Stock", passed: items.every(i => i.stock >= i.qty), detail: "Every item must have sufficient stock" },
+    { rule: "Compatibility", passed: items.slice(1).every(i => i.compatibleWith.includes(items[0].id)), detail: "Accessories explicitly list the primary product" },
+  ]
+}
+const statuses: RunStatus[] = ["awaiting_approval", "executed", "rejected_by_policy", "failed", "needs_input", "rejected", "approved", "running"]
+export const initialRuns: Run[] = statuses.map((status, i) => {
+  const proposal = { ...bundle, discountPct: status === "rejected_by_policy" ? 30 : 10 }
+  return {
+    id: `RUN-${1048 - i}`, request: ["A more thoughtful workday setup", "Studio essentials bundle", "Clearance desk bundle", "Weekend creator kit", "Build something", "Mobile essentials", "Approved desk kit", "Processing inventory"][i],
+    status, proposal, checks: checkProposal(proposal, defaultRules), createdAt: new Date(Date.now() - i * 3600000).toISOString(),
+    events: [{ step: "Evaluate inventory", status: "ok", message: "Synthetic catalog evaluated", at: new Date(Date.now() - i * 3600000).toISOString() }],
+  }
+})
+export const orders = [{ id: "DEMO-01" }, { id: "DEMO-02" }, { id: "DEMO-03" }]
+export function simulateAssistant(request: string) {
+  const q = request.toLowerCase()
+  const amount = q.match(/(?:under|budget|below|\$)\s*\$?(\d+)/)
+  const category = /headphone|audio/.test(q) ? "Audio" : /laptop|creative/.test(q) ? "Laptops" : /phone/.test(q) ? "Phones" : /desk|keyboard/.test(q) ? "Keyboards" : ""
+  if (!category && !amount) return { clarification: true, results: [] }
+  return { clarification: false, results: products.filter(p => p.stock > 0 && (!category || p.category === category) && (!amount || p.priceCents <= Number(amount[1]) * 100)).slice(0, 4) }
+}
+import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes } from "react"
+import Icon from "./Icon"
+
+export function Button({ children, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button {...props} className={`inline-flex min-h-11 items-center justify-center gap-3 rounded-full bg-[#141917] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#a83b1c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e45e37] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-600 ${className}`}>{children}</button>
+}
+export function Photo({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false)
+  return failed ? <div className={`grid place-items-center bg-[#e6e2d8] text-slate-700 ${className}`}><div className="p-5 text-center"><svg className="mx-auto h-10 w-10" viewBox="0 0 40 40" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="6" width="32" height="28" rx="3"/><path d="m5 29 10-11 8 8 6-6 7 9"/><circle cx="28" cy="14" r="3"/></svg><p className="mt-2 text-sm">{alt} · Photo unavailable</p></div></div> : <img src={src} alt={alt} onError={() => setFailed(true)} className={`object-cover ${className}`} />
+}
+export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement
+    const el = ref.current!
+    const targets = () => Array.from(el.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, select, [tabindex="0"]'))
+    targets()[0]?.focus()
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+      if (e.key !== "Tab") return
+      const t = targets(), first = t[0], last = t[t.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+    }
+    document.addEventListener("keydown", key)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => { document.removeEventListener("keydown", key); document.body.style.overflow = overflow; before?.focus() }
+  }, [onClose])
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={e => e.stopPropagation()} className="max-h-[90dvh] w-full max-w-3xl overflow-auto rounded-2xl bg-[#f5f3ee] p-6 text-[#141917] md:p-9">
+      <div className="mb-5 flex items-start justify-between gap-5"><h2 id="dialog-title" className="text-3xl font-medium tracking-tight">{title}</h2><button aria-label="Close dialog" className="grid min-h-11 min-w-11 place-items-center rounded-full border border-black/20 focus-visible:ring-2" onClick={onClose}><Icon name="close" /></button></div>{children}
+    </div>
+  </div>
+}
+export function Badge() {
+  return <span className="inline-flex rounded-full border border-current/25 px-3 py-1 text-xs">Synthetic demo data</span>
+}
+import { useState } from "react"
+import type { Proposal, PublicProduct } from "../../types"
+import { categoryFeatures, featured, heroImage, money, categories, prompts, simulateAssistant } from "../../data/demo"
+import { Badge, Button, Modal, Photo } from "../shared/UI"
+import Icon from "../shared/Icon"
+import BundleSection from "../bundle/BundleSection"
+
+type Props = {
+  products: PublicProduct[]
+  bundle: Proposal
+  cartCount: number
+  onAddToCart: (id: string) => void
+  onAddBundle: () => void
+  onOpenCart: () => void
+  onSignIn: () => void
+}
+export function ProductCard({ product: p, onAddToCart, onCompare, onOpen, selected = false }: {
+  product: PublicProduct
+  onAddToCart: (id: string) => void
+  onCompare: (id: string) => void
+  onOpen: (p: PublicProduct) => void
+  selected?: boolean
+}) {
+  return <article className="group min-w-0">
+    <div className="relative overflow-hidden rounded-2xl bg-[#eae7df] shadow-sm">
+      <button className="block w-full focus-visible:ring-2" onClick={() => onOpen(p)} aria-label={`View ${p.name}`}><Photo src={p.imageUrl} alt={p.name} className="aspect-[1.16] w-full transition duration-500 group-hover:scale-[1.025] motion-reduce:transform-none" /></button>
+      <button onClick={() => onAddToCart(p.id)} disabled={!p.stock} aria-label={`Add ${p.name} to bag`} className="absolute bottom-4 right-4 grid min-h-11 min-w-11 place-items-center rounded-full bg-white text-black shadow-sm disabled:bg-slate-200"><Icon name="plus" /></button>
+    </div>
+    <div className="mt-4 flex justify-between gap-3"><button className="min-h-11 text-left font-semibold" onClick={() => onOpen(p)}>{p.name}</button><span className="pt-3 text-sm">{money(p.priceCents)}</span></div>
+    <div className="flex items-center justify-between gap-2 text-sm text-slate-600"><span>{p.stock ? "In stock · Ready when you are" : "Currently out of stock"}</span><button aria-pressed={selected} onClick={() => onCompare(p.id)} className="min-h-11 underline underline-offset-4">{selected ? "Selected" : "Compare"}</button></div>
+  </article>
+}
+export default function Storefront({ products, bundle, cartCount, onAddToCart, onAddBundle, onOpenCart, onSignIn }: Props) {
+  const [view, setView] = useState("Home")
+  const [category, setCategory] = useState("All")
+  const [query, setQuery] = useState("")
+  const [maxPrice, setMaxPrice] = useState(2500)
+  const [stockOnly, setStockOnly] = useState(false)
+  const [detail, setDetail] = useState<PublicProduct | null>(null)
+  const [selected, setSelected] = useState<string[]>([])
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [assistant, setAssistant] = useState(false)
+  const [request, setRequest] = useState("")
+  const [lastRequest, setLastRequest] = useState("")
+  const [failure, setFailure] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<ReturnType<typeof simulateAssistant> | null>(null)
+  const [error, setError] = useState(false)
+  const compare = (id: string) => setSelected(s => s.includes(id) ? s.filter(i => i !== id) : s.length < 4 ? [...s, id] : s)
+  const ask = (text: string, retry = false) => {
+    if (!text.trim()) return
+    setAssistant(true); setLoading(true); setLastRequest(text); setRequest(""); setError(false); setResult(null)
+    window.setTimeout(() => { setLoading(false); if (failure && !retry) setError(true); else setResult(simulateAssistant(text)) }, 700)
+  }
+  const visible = products.filter(p => (category === "All" || p.category === category) && p.name.toLowerCase().includes(query.toLowerCase()) && p.priceCents <= maxPrice * 100 && (!stockOnly || p.stock > 0))
+  const card = (p: PublicProduct) => <ProductCard key={p.id} product={p} selected={selected.includes(p.id)} onAddToCart={onAddToCart} onCompare={compare} onOpen={setDetail} />
+  const navigate = (v: string) => { setView(v); window.scrollTo({ top: 0, behavior: "instant" }) }
+  return <>
+    <div className="bg-[#141917] px-4 py-2 text-center text-xs tracking-wide text-white">Thoughtfully chosen. Beautifully connected. <span className="hidden md:inline">A better everyday starts here.</span></div>
+    <header className="flex min-h-24 flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-12">
+      <button onClick={() => navigate("Home")} aria-label="Aperture home" className="flex min-h-11 items-center gap-2 text-2xl font-extrabold tracking-[-.07em]"><Icon name="aperture" size={30} />aperture<span className="text-[#bb4524]">.</span></button>
+      <nav aria-label="Store" className="order-3 flex w-full justify-center gap-7 md:order-none md:w-auto">{["Home", "Shop", "Bundles"].map(v => <button key={v} onClick={() => navigate(v)} className={`min-h-11 text-sm ${view === v ? "underline decoration-[#e45e37] underline-offset-8" : "text-slate-600"}`}>{v}</button>)}<button onClick={() => setAssistant(true)} className="flex min-h-11 items-center gap-2 text-sm"><Icon name="spark" size={16} /> Ask Aperture</button></nav>
+      <div className="flex items-center gap-3"><button aria-label="Merchant demo sign-in" onClick={onSignIn} className="grid min-h-11 min-w-11 place-items-center"><Icon name="user" /></button><button onClick={onOpenCart} aria-label={`Shopping bag, ${cartCount} items`} className="flex min-h-11 items-center gap-2"><Icon name="bag" /><span className="text-sm">({cartCount})</span></button></div>
+    </header>
+    {view === "Home" && <>
+      <section className="relative isolate min-h-[640px] bg-[#242522] text-white md:min-h-[660px]">
+        <Photo src={heroImage} alt="A thoughtfully arranged creative workspace with a desktop computer and everyday essentials" className="absolute inset-0 -z-20 h-full w-full" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/80 via-black/45 to-black/10" />
+        <div className="mx-auto max-w-[1440px] px-6 py-20 md:px-16 md:py-24">
+          <p className="mb-8 text-xs font-semibold uppercase tracking-[.22em]">Less noise. More possibility.</p>
+          <h1 className="max-w-3xl text-[64px] font-medium leading-[1.02] tracking-[-.065em] md:text-[100px]">Good tech.<br />Better <em className="font-serif font-normal">living.</em></h1>
+          <p className="mb-8 mt-7 max-w-sm text-base leading-7 text-white">Considered essentials for the way you work,<br className="hidden md:block" /> play, and find your everyday extraordinary.</p>
+          <Button onClick={() => navigate("Shop")} className="bg-[#e45e37] text-[#141917] hover:bg-[#f17d59]">Find your everyday upgrade <Icon name="arrow" size={18} /></Button>
+          <div className="mt-16 flex items-center gap-3 text-xs"><span className="h-px w-8 bg-white" /> CURATED FOR YOUR EVERYDAY <span className="ml-6">01 / 03</span></div>
+        </div>
+        <span className="absolute bottom-8 right-10 hidden text-xs tracking-widest lg:block">THE EVERYDAY COLLECTION — 2026</span>
+      </section>
+      <section className="mx-auto max-w-[1320px] px-6 py-12 md:px-10">
+        <div className="flex flex-col justify-between gap-6 rounded-2xl border border-black/10 bg-[#ebe8df] p-6 md:flex-row md:items-center md:p-8">
+          <div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#e45e37]"><Icon name="spark" size={24} /></span><div><h2 className="text-xl font-semibold tracking-tight">Your next favorite, minus the guesswork.</h2><p className="mt-1 text-sm text-slate-600">Tell me what you need. Budget? What will you use it for?</p></div></div>
+          <button onClick={() => setAssistant(true)} className="flex min-h-12 shrink-0 items-center justify-between gap-12 rounded-full border border-black/20 bg-[#f5f3ee] px-5 text-sm">Let’s find your fit <Icon name="arrow" size={18} /></button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="mr-2">A little inspiration:</span>{prompts.map(p => <button key={p} onClick={() => ask(p)} className="min-h-11 rounded-full px-3 underline decoration-black/20 underline-offset-4">{p} ↗</button>)}</div>
+      </section>
+      <section className="mx-auto max-w-[1320px] px-6 pb-16 md:px-10">
+        <div className="mb-7 flex items-end justify-between gap-5"><div><p className="mb-3 text-xs uppercase tracking-[.18em] text-slate-600">Thoughtfully selected</p><h2 className="text-4xl font-medium tracking-[-.05em]">Find your kind of <em className="font-serif">essential.</em></h2></div><button onClick={() => navigate("Shop")} className="hidden min-h-11 items-center gap-3 text-sm md:flex">Explore the collection <Icon name="arrow" size={18} /></button></div>
+        <div className="grid gap-5 md:grid-cols-3">{categoryFeatures.map(c => <button key={c.name} onClick={() => { setCategory(c.name); navigate("Shop") }} className="group relative min-h-80 overflow-hidden rounded-2xl text-left text-white"><Photo src={c.imageUrl} alt={c.name} className="absolute inset-0 h-full w-full transition duration-500 group-hover:scale-105 motion-reduce:transform-none" /><span className="absolute inset-0 bg-gradient-to-t from-black/85 to-transparent" /><span className="absolute bottom-6 left-6 right-6"><span className="mb-1 block text-sm">{c.caption}</span><span className="flex items-center justify-between text-3xl tracking-tight">{c.name}<Icon name="arrow" size={24} /></span></span></button>)}</div>
+      </section>
+      <section className="mx-auto max-w-[1320px] px-6 pb-20 md:px-10"><div className="mb-7 flex justify-between"><h2 className="text-3xl tracking-tight">The everyday favorites.</h2><button onClick={() => navigate("Shop")} className="min-h-11 text-sm underline">Shop all ↗</button></div><div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">{featured.map(card)}</div></section>
+      <BundleSection products={products} proposal={bundle} onAddToCart={onAddBundle} />
+    </>}
+    {view === "Shop" && <main className="mx-auto max-w-[1320px] px-6 py-12 md:px-10">
+      <p className="text-xs uppercase tracking-widest text-slate-600">The collection</p><h1 className="mb-8 mt-3 text-5xl tracking-[-.05em]">Made for your <em className="font-serif">everyday.</em></h1>
+      <div className="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-black/10 p-4">
+        <input aria-label="Search products" placeholder="Search the collection" value={query} onChange={e => setQuery(e.target.value)} className="min-h-11 min-w-0 rounded-lg border border-black/20 bg-white px-4" />
+        <select aria-label="Category" value={category} onChange={e => setCategory(e.target.value)} className="min-h-11 max-w-full rounded-lg border border-black/20 bg-white px-3">{["All", ...categories].map(c => <option key={c}>{c}</option>)}</select>
+ 
+
+[truncated: omitted lines 336-343 (1415 bytes, bytes 25566-26980)]
+
+lassName="min-h-11 text-sm underline">Merchant workspace ↗</button><p className="text-xs text-slate-600">© 2026 Aperture · A simulated store</p></footer>
+    {selected.length > 0 && <div className="fixed bottom-5 left-1/2 z-30 flex w-[calc(100%-32px)] max-w-lg -translate-x-1/2 items-center justify-between gap-3 rounded-full bg-[#141917] px-5 py-3 text-white shadow-xl"><span className="text-sm">{selected.length} / 4 selected</span><button className="min-h-11 text-sm underline" onClick={() => setSelected([])}>Clear</button><Button disabled={selected.length < 2} onClick={() => setCompareOpen(true)} className="bg-[#e45e37] text-black">Compare →</Button></div>}
+    {compareOpen && <Modal title="A little perspective." onClose={() => setCompareOpen(false)}><div className="overflow-x-auto"><div className="grid min-w-[520px] gap-4" style={{ gridTemplateColumns: `repeat(${selected.length}, minmax(0, 1fr))` }}>{selected.map(id => { const p = products.find(p => p.id === id)!; const min = Math.min(...products.filter(p => selected.includes(p.id)).map(p => p.priceCents)); return <article key={id}><Photo src={p.imageUrl} alt={p.name} className="mb-4 aspect-square w-full rounded-xl" /><h3 className="font-semibold">{p.name}</h3><p className="my-3">{money(p.priceCents)}</p><p className="text-sm text-slate-600">{money(p.priceCents - min)} above lowest</p><p className="my-3 text-sm">{p.category} · {p.stock} in stock</p></article> })}</div></div><p className="mt-6 border-t border-black/10 pt-5 text-sm text-slate-600">Trade-off: choose the lowest price for value, or the category that fits your task. These fictional models have no verified performance benchmarks.</p></Modal>}
+    {detail && <Modal title={detail.name} onClose={() => setDetail(null)}><Photo src={detail.imageUrl} alt={detail.name} className="aspect-video w-full rounded-xl" /><div className="my-3 flex gap-3">{[1, 2].map(i => <Photo key={i} src={`${detail.imageUrl}&sat=${i === 1 ? 0 : -25}`} alt={`${detail.name}, catalog view ${i}`} className="h-20 w-28 rounded-lg" />)}</div><p className="my-4 text-2xl">{money(detail.priceCents)}</p><table className="my-5 w-full text-sm"><tbody>{[["Category", detail.category], ["Availability", `${detail.stock} in stock`], ["Data", "Fictional model · specifications not verified"]].map(([k, v]) => <tr key={k} className="border-b border-black/10"><th className="py-3 text-left font-medium">{k}</th><td>{v}</td></tr>)}</tbody></table><Button disabled={!detail.stock} onClick={() => { onAddToCart(detail.id); setDetail(null) }}>Add to bag →</Button><h3 className="mb-3 mt-8 text-xl">Confirmed compatible accessories</h3>{products.filter(p => p.compatibleWith.includes(detail.id)).slice(0, 3).map(p => <button key={p.id} onClick={() => setDetail(p)} className="block min-h-11 underline">{p.name} · {money(p.priceCents)}</button>)}{!products.some(p => p.compatibleWith.includes(detail.id)) && <p className="text-sm text-slate-600">No confirmed accessories recorded.</p>}<h3 className="mb-3 mt-6 text-xl">In-stock alternatives</h3>{products.filter(p => p.category === detail.category && p.id !== detail.id && p.stock).slice(0, 2).map(p => <button key={p.id} onClick={() => setDetail(p)} className="block min-h-11 underline">{p.name} · {money(p.priceCents)}</button>)}</Modal>}
+    {assistant && <Modal title="A good place to start." onClose={() => setAssistant(false)}><p className="mb-5 text-xs uppercase tracking-wider text-slate-600">Ask Aperture · Simulated demo AI</p>
+      {lastRequest && <p className="mb-5 rounded-2xl bg-[#e8e3d8] p-4">{lastRequest}</p>}
+      {loading && <p role="status" className="py-8">Finding a few thoughtful options…</p>}
+      {error && <div role="alert" className="mb-5 rounded-xl border border-[#a83b1c] p-5"><p className="mb-4">Our demo assistant hit a snag. Your request is still here.</p><Button onClick={() => ask(lastRequest, true)}>Retry</Button></div>}
+      {result?.clarification && <div><p>What kind of upgrade are you looking for?</p><div className="my-4 flex flex-wrap gap-2">{prompts.map(p => <Button key={p} onClick={() => ask(p)}>{p}</Button>)}</div></div>}
+      {result && !result.clarification && <><p className="mb-4">{result.results.length ? "A few options that fit your request." : "Nothing found for that budget. Here are in-stock alternatives."}</p><div className="grid gap-4 md:grid-cols-2">{(result.results.length ? result.results : products.filter(p => p.stock > 0).slice(0, 2)).map(card)}</div></>}
+      {!result && !loading && !error && <p className="mb-6 text-slate-600">Tell me what you need. Budget? What will you use it for?</p>}
+      <form onSubmit={e => { e.preventDefault(); ask(request) }} className="mt-6 flex gap-2"><input aria-label="Ask the shopping assistant" value={request} onChange={e => setRequest(e.target.value)} placeholder="Headphones under $300…" className="min-h-12 min-w-0 flex-1 rounded-full border border-black/20 bg-white px-4" /><Button disabled={loading || !request.trim()}>Send ↗</Button></form>
+      <label className="mt-4 flex min-h-11 items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={failure} onChange={e => setFailure(e.target.checked)} />Simulate provider failure</label>
+    </Modal>}
+  </>
+}
+import type { Proposal, PublicProduct } from "../../types"
+import { money } from "../../data/demo"
+import { Button, Photo } from "../shared/UI"
+
+export default function BundleSection({ products, proposal, onAddToCart }: {
+  products: PublicProduct[]
+  proposal: Proposal
+  onAddToCart: () => void
+}) {
+  const items = proposal.items.map(i => ({ ...products.find(p => p.id === i.productId)!, qty: i.qty }))
+  const total = items.reduce((s, p) => s + p.priceCents * p.qty, 0)
+  return <section className="bg-[#e9e5dc] px-6 py-16 md:px-12">
+    <div className="mx-auto grid max-w-[1240px] items-center gap-10 lg:grid-cols-2">
+      <div><p className="mb-5 text-xs uppercase tracking-[.2em]">Better together</p><h2 className="text-5xl leading-tight tracking-[-.05em]">Complete your<br /><em className="font-serif">setup.</em></h2><p className="my-5 max-w-md text-base leading-7 text-slate-600">{proposal.explanation}</p><div className="mb-6 flex flex-wrap items-center gap-4"><span className="text-slate-600 line-through">{money(total)}</span><strong className="text-3xl">{money(Math.round(total * (1 - proposal.discountPct / 100)))}</strong><span className="rounded-full bg-[#e45e37] px-3 py-2 text-xs font-semibold text-black">Save {proposal.discountPct}%</span></div><Button disabled={items.some(p => p.stock < p.qty)} onClick={onAddToCart}>Add the setup to your bag →</Button><p className="mt-3 text-xs text-slate-600">Bought separately {money(total)} · Demo bundle price shown above</p></div>
+      <div className="space-y-3">{items.map((p, i) => <article key={p.id} className="flex items-center gap-5 rounded-2xl bg-[#f5f3ee] p-4 shadow-sm"><Photo src={p.imageUrl} alt={p.name} className="h-24 w-24 shrink-0 rounded-xl" /><div className="min-w-0"><p className="text-xs uppercase tracking-wide text-slate-600">{p.category} · Qty {p.qty}</p><h3 className="my-1 font-semibold">{p.name}</h3><p className="text-xs text-slate-600">{i === 0 ? "The centerpiece" : p.compatibleWith.includes(items[0].id) ? "Confirmed compatible" : "Compatibility not confirmed"}</p></div><span className="ml-auto text-sm">{money(p.priceCents)}</span></article>)}</div>
+    </div>
+  </section>
+}
+import { useState } from "react"
+import type { MerchantProduct, Rules, Run } from "../../types"
+import { categories, money, orders, checkProposal } from "../../data/demo"
+import { Badge, Button, Modal } from "../shared/UI"
+import Icon from "../shared/Icon"
+import RunDetail from "../ops/RunDetail"
+
+type Props = {
+  products: MerchantProduct[]
+  runs: Run[]
+  rules: Rules
+  onSaveRules: (rules: Rules) => void
+  onSubmitRequest: (request: string, failure: boolean) => void
+  onApprove: (id: string, note: string) => void
+  onReject: (id: string, note: string) => void
+  onRetry: (id: string) => void
+  onExit: () => void
+}
+export default function Workspace(props: Props) {
+  const { products, runs, rules, onSaveRules, onSubmitRequest, onExit } = props
+  const [tab, setTab] = useState("Overview")
+  const [category, setCategory] = useState("All")
+  const [request, setRequest] = useState("")
+  const [failure, setFailure] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState(rules)
+  const [confirm, setConfirm] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [selectedId, setSelectedId] = useState(runs[0]?.id)
+  const low = products.filter(p => p.stock <= 5)
+  const invalid = !Number.isFinite(draft.minMarginPct) || !Number.isFinite(draft.maxDiscountPct) || draft.minMarginPct < 0 || draft.minMarginPct > 95 || draft.maxDiscountPct < 0 || draft.maxDiscountPct > 90
+  const selected = runs.find(r => r.id === selectedId) ?? runs[0]
+  const panel = "rounded-2xl border border-white/15 bg-[#202624] p-6"
+  return <div className="min-h-screen bg-[#141917] text-white md:flex">
+    <aside className="flex shrink-0 flex-col border-b border-white/15 p-5 md:min-h-screen md:w-60 md:border-b-0 md:border-r md:p-7">
+      <button onClick={onExit} className="flex min-h-11 items-center gap-2 text-2xl font-bold tracking-tight"><Icon name="aperture" size={29} />aperture.</button>
+      <p className="mb-4 mt-8 text-xs uppercase tracking-[.18em] text-slate-300">Merchant workspace</p>
+      <nav aria-label="Merchant" className="flex gap-2 overflow-x-auto md:flex-col">{["Overview", "Inventory", "Copilot", "Approvals", "Rules", "Activity"].map(t => <button key={t} onClick={() => setTab(t)} aria-current={tab === t ? "page" : undefined} className={`min-h-12 shrink-0 rounded-lg px-4 text-left text-sm ${tab === t ? "bg-[#e45e37] font-semibold text-black" : "text-slate-300 hover:bg-white/10"}`}>{t}</button>)}</nav>
+      <div className="mt-auto pt-10"><Badge /><p className="mt-4 text-xs leading-6 text-slate-300">Demo operator<br />In-memory workspace. No real account.</p><button onClick={onExit} className="mt-4 min-h-11 text-sm underline">← Back to store / sign out</button></div>
+    </aside>
+    <main className="min-w-0 flex-1 p-5 md:p-10 lg:p-12">
+      <div className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/15 pb-6"><p className="text-sm text-slate-300">Workspace / <span className="text-white">{tab}</span></p><span className="text-xs text-slate-300">DEMO ENVIRONMENT · NOT CONNECTED</span></div>
+      <p className="text-xs uppercase tracking-[.18em] text-[#f8997e]">Aperture operations</p><h1 className="mb-3 mt-3 text-4xl font-medium tracking-tight">{tab === "Copilot" ? "Inventory-to-Bundle" : tab === "Overview" ? "A clear view of your store." : tab}</h1><p className="mb-9 text-sm text-slate-300">Synthetic catalog. Human decisions. Everything stays in this session.</p>
+      {tab === "Overview" && <>
+        <div className="mb-7 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[["Catalog products", products.length], ["Demo orders", orders.length], ["Low stock · ≤ 5", low.length], ["Awaiting approval", runs.filter(r => r.status === "awaiting_approval").length]].map(([k, v]) => <article className={panel} key={k}><p className="text-sm text-slate-300">{k}</p><strong className="mt-5 block text-4xl font-medium">{v}</strong></article>)}</div>
+        <div className="grid gap-6 lg:grid-cols-2"><section className={panel}><h2 className="mb-5 text-xl">Runs by status</h2>{Array.from(new Set(runs.map(r => r.status))).map(s => <div key={s} className="flex justify-between border-t border-white/10 py-3 text-sm"><span>{s.replace(/_/g, " ")}</span><strong>{runs.filter(r => r.status === s).length}</strong></div>)}</section><section className={panel}><h2 className="mb-5 text-xl">Stock to keep an eye on</h2>{low.map(p => <div key={p.id} className="flex justify-between border-t border-white/10 py-3 text-sm"><span>{p.name}</span><span className="text-[#f8997e]">{p.stock} left</span></div>)}</section></div>
+      </>}
+      {tab === "Inventory" && <section className={panel}><div className="mb-6 flex flex-wrap items-center justify-between gap-4"><h2 className="text-xl">Catalog · {products.length} products</h2><select aria-label="Inventory category" value={category} onChange={e => setCategory(e.target.value)} className="min-h-11 max-w-full rounded-lg border border-white/25 bg-[#141917] px-3">{["All", ...categories].map(c => <option key={c}>{c}</option>)}</select></div><div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="text-slate-300"><tr>{["Product", "Stock", "Price", "Cost", "Margin"].map(c => <th key={c} className="pb-4 font-medium">{c}</th>)}</tr></thead><tbody>{products.filter(p => category === "All" || p.category === category).map(p => <tr key={p.id} className={`border-t border-white/10 ${p.stock <= 5 ? "bg-[#e45e37]/10" : ""}`}><td className="py-4">{p.name}<span className="mt-1 block text-xs text-slate-300">{p.category}</span></td><td>{p.stock}{p.stock <= 5 && " · Low"}</td><td>{money(p.priceCents)}</td><td>{money(p.costCents)}</td><td>{((p.priceCents - p.costCents) / p.priceCents * 100).toFixed(1)}%</td></tr>)}</tbody></table></div></section>}
+      {tab === "Copilot" && <>
+        <form className={`${panel} mb-6`} onSubmit={e => { e.preventDefault(); setBusy(true); window.setTimeout(() => { onSubmitRequest(request, failure); setBusy(false); setRequest("") }, 900) }}><label htmlFor="merchant-request" className="mb-4 block text-xl">What should we put together?</label><textarea id="merchant-request" value={request} onChange={e => setRequest(e.target.value)} placeholder="Create a desk bundle with a laptop and compatible accessories…" className="min-h-28 w-full rounded-xl border border-white/25 bg-[#141917] p-4 text-base" /><div className="mt-4 flex flex-wrap items-center justify-between gap-4"><label className="flex min-h-11 items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={failure} onChange={e => setFailure(e.target.checked)} />Simulate provider failure</label><Button disabled={busy || !request.trim()} className="bg-[#e45e37] text-black" >{busy ? "Reading → matching → checking…" : "Generate proposal →"}</Button></div><p className="mt-4 text-xs text-slate-300">Deterministic demo: produces the Studio desk bundle; short requests need clarification.</p></form>
+        {busy ? <div className={panel} role="status">Reading inventory…<br />Matching recorded compatibility…<br />Checking your rules…</div> : runs[0] ? <RunDetail {...props} run={runs[0]} checks={checkProposal(runs[0].proposal, rules)} /> : <p>No runs yet. Submit a request to begin.</p>}
+      </>}
+      {tab === "Approvals" && <><div className="mb-6 flex flex-wrap gap-2">{runs.map(r => <button key={r.id} aria-pressed={r.id === selected?.id} onClick={() => setSelectedId(r.id)} className={`min-h-11 rounded-full border border-white/25 px-4 text-sm ${r.id === selected?.id ? "bg-white text-black" : ""}`}>{r.id} · {r.status.replace(/_/g, " ")}</button>)}</div>{selected ? <RunDetail {...props} key={selected.id} run={selected} checks={checkProposal(selected.proposal, rules)} /> : <p>All clear. No proposals to review.</p>}</>}
+      {tab === "Rules" && <section className={`${panel} max-w-2xl`}><h2 className="mb-6 text-xl">Your guardrails, explicitly defined.</h2><div className="space-y-6">{(["minMarginPct", "maxDiscountPct"] as const).map((key, i) => <label key={key} className="flex flex-wrap items-center justify-between gap-4 text-sm">{i === 0 ? "Minimum margin · 0–95%" : "Maximum discount · 0–90%"}<input type="number" min="0" max={i === 0 ? 95 : 90} aria-label={key} value={Number.isNaN(draft[key]) ? "" : draft[key]} onChange={e => { setSaved(false); setDraft(d => ({ ...d, [key]: e.target.value === "" ? NaN : +e.target.value })) }} className="min-h-11 w-28 rounded-lg border border-white/25 bg-[#141917] p-3" /></label>)}</div>{invalid && <p role="alert" className="mt-5 text-sm text-[#ffad96]">Enter a margin from 0–95 and a discount from 0–90.</p>}<Button disabled={invalid} onClick={() => setConfirm(true)} className="mt-8 bg-[#e45e37] text-black">Review changes →</Button>{saved && <p role="status" className="mt-5 text-sm">Rules saved in memory. Future approvals re-check these rules.</p>}</section>}
+      {tab === "Activity" && <section className={panel}><h2 className="mb-6 text-xl">Audit trail</h2>{runs.flatMap(r => r.events.map((e, i) => ({ ...e, id: `${r.id}-${i}`, run: r.id }))).sort((a, b) => b.at.localeCompare(a.at)).map(e => <article key={e.id} className="grid gap-2 border-t border-white/10 py-5 md:grid-cols-[180px_1fr]"><time className="text-xs text-slate-300">{new Date(e.at).toLocaleString()}</time><div><h3 className="text-sm font-semibold">{e.run} · {e.step} · {e.status}</h3><p className="mt-2 text-sm text-slate-300">{e.message}</p></div></article>)}</section>}
+    </main>
+    {confirm && <Modal title="Confirm your guardrails" onClose={() => setConfirm(false)}><p className="my-6">Minimum margin: {rules.minMarginPct}% → {draft.minMarginPct}%<br />Maximum discount: {rules.maxDiscountPct}% → {draft.maxDiscountPct}%</p><p className="mb-6 text-sm text-slate-600">New values will be checked on every approval. Nothing is saved outside this page session.</p><Button onClick={() => { onSaveRules(draft); setSaved(true); setConfirm(false) }}>Confirm rule changes</Button></Modal>}
+  </div>
+}
+import { useState } from "react"
+import type { MerchantProduct, RuleCheck, Run } from "../../types"
+import { money } from "../../data/demo"
+import { Button } from "../shared/UI"
+
+export default function RunDetail({ run, products, checks, onApprove, onReject, onRetry }: {
+  run: Run
+  products: MerchantProduct[]
+  checks: RuleCheck[]
+  onApprove: (id: string, note: string) => void
+  onReject: (id: string, note: string) => void
+  onRetry: (id: string) => void
+}) {
+  const [note, setNote] = useState("")
+  const awaiting = run.status === "awaiting_approval"
+  const passed = checks.every(c => c.passed)
+  const decided = ["approved", "executed", "rejected"].includes(run.status)
+  return <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]">
+    <section className="rounded-2xl border border-white/15 bg-[#202624] p-6"><p className="text-xs uppercase tracking-widest text-slate-300">{run.id}</p><h2 className="my-4 text-2xl tracking-tight">{run.request}</h2><span className="inline-flex rounded-full border border-white/30 px-3 py-2 text-xs">{run.status.replace(/_/g, " ")}</span><h3 className="mb-4 mt-8 text-lg">Workflow timeline</h3>{run.events.map((e, i) => <div key={i} className="border-l border-[#e45e37] pb-6 pl-5"><p className="text-sm">{e.status === "ok" ? "✓" : e.status === "failed" ? "×" : "…"} {e.step}</p><p className="mt-2 text-sm text-slate-300">{e.message}</p><time className="mt-2 block text-xs text-slate-300">{new Date(e.at).toLocaleTimeString()}</time></div>)}</section>
+    <section className="rounded-2xl border border-white/15 bg-[#202624] p-6"><div className="flex justify-between gap-4"><h2 className="text-xl">Proposed setup</h2><strong>{run.proposal.discountPct}% off</strong></div><p className="my-4 text-sm leading-6 text-slate-300">{run.proposal.explanation}</p>{run.proposal.items.map(i => { const p = products.find(p => p.id === i.productId)!; return <div key={i.productId} className="flex justify-between gap-4 border-t border-white/10 py-4 text-sm"><span>{i.qty} × {p.name}</span><span>{money(p.priceCents * i.qty)}</span></div> })}
+      <h3 className="mb-2 mt-6 text-lg">Rule checks</h3>{checks.map(c => <div key={c.rule} className="border-t border-white/10 py-3"><p className={`text-sm font-semibold ${c.passed ? "text-white" : "text-[#ffad96]"}`}>{c.passed ? "✓ PASS" : "× FAIL"} · {c.rule}</p><p className="mt-1 text-sm text-slate-300">{c.detail}</p></div>)}
+      {(!passed || run.status === "rejected_by_policy") && <p className="my-4 rounded-lg border border-[#ffad96] p-4 text-sm text-[#ffad96]">Approval blocked by policy. Adjust the proposal or rules; all checks must pass.</p>}
+      {awaiting && <><label className="mb-2 mt-5 block text-sm" htmlFor={`note-${run.id}`}>Decision note · {note.length}/500</label><textarea id={`note-${run.id}`} value={note} onChange={e => setNote(e.target.value)} maxLength={500} className="min-h-24 w-full rounded-lg border border-white/25 bg-[#141917] p-3" /><div className="mt-4 flex flex-wrap gap-3"><Button disabled={!passed} onClick={() => onApprove(run.id, note)} className="bg-[#e45e37] text-black">Approve & execute</Button><Button onClick={() => onReject(run.id, note)} className="border border-white/25">Reject</Button></div></>}
+      {run.status === "failed" && <div className="mt-5"><p className="mb-4 text-sm">The simulated provider failed. Retry keeps the same proposal.</p><Button onClick={() => onRetry(run.id)}>Retry workflow</Button></div>}
+      {run.status === "needs_input" && <p className="mt-5 text-sm">Needs input: specify your bundle goal in a new Copilot request, for example “Build a laptop desk setup”.</p>}
+      {run.status === "running" && <div className="mt-5"><p role="status" className="mb-4 text-sm">Demo run is paused at inventory evaluation.</p><Button onClick={() => onRetry(run.id)}>Complete demo run</Button></div>}
+      {decided && <p className="mt-6 rounded-lg border border-white/20 p-4 text-sm">Already decided · {run.status === "executed" ? "Executed in demo only. No real order or inventory change." : run.status}. Decisions cannot be submitted twice.</p>}
+    </section>
+  </div>
+}
+type IconName = "aperture" | "arrow" | "bag" | "check" | "chevron" | "close" | "compare" | "grid" | "inventory" | "menu" | "minus" | "plus" | "search" | "shield" | "spark" | "timeline" | "user"
+
+export default function Icon({
+  name,
+  size = 20,
+}: {
+  name: IconName
+  size?: number
+}) {
+  const paths: Record<IconName, React.ReactNode> = {
+    aperture: (
+      <>
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="m7 5 4 7-7 1m13 6-4-7 7-1M5 17l8-1-1 7m7-16-8 1 1-7" />
+      </>
+    ),
+    arrow: (
+      <>
+        <path d="M5 12h14" />
+        <path d="m14 7 5 5-5 5" />
+      </>
+    ),
+    bag: (
+      <>
+        <path d="M5 8h14l-1 13H6L5 8Z" />
+        <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    chevron: <path d="m8 10 4 4 4-4" />,
+    close: (
+      <>
+        <path d="m6 6 12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
+    compare: (
+      <>
+        <path d="M8 3v18M16 3v18M3 8h5M16 16h5" />
+        <path d="m5 5-2 3 2 3m14 2 2 3-2 3" />
+      </>
+    ),
+    grid: (
+      <>
+        <rect x="4" y="4" width="6" height="6" />
+        <rect x="14" y="4" width="6" height="6" />
+        <rect x="4" y="14" width="6" height="6" />
+        <rect x="14" y="14" width="6" height="6" />
+      </>
+    ),
+    inventory: (
+      <>
+        <path d="m4 7 8-4 8 4-8 4-8-4Z" />
+        <path d="m4 7 8 4 8-4v10l-8 4-8-4V7Z" />
+      </>
+    ),
+    menu: (
+      <>
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </>
+    ),
+    minus: <path d="M5 12h14" />,
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 3 5 6v5c0 4.5 2.8 8.2 7 10 4.2-1.8 7-5.5 7-10V6l-7-3Z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 3 1.4 4.4L18 9l-4.6 1.6L12 15l-1.4-4.4L6 9l4.6-1.6L12 3Z" />
+        <path d="m19 16 .6 1.8 1.9.7-1.9.7L19 21l-.6-1.8-1.9-.7 1.9-.7L19 16Z" />
+      </>
+    ),
+    timeline: (
+      <>
+        <path d="M6 4v16" />
+        <circle cx="6" cy="7" r="2" />
+        <circle cx="6" cy="16" r="2" />
+        <path d="M10 7h9M10 16h9" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </>
+    ),
+  }
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[name]}
+    </svg>
+  )
+}
+import React from "react"
+import ReactDOM from "react-dom/client"
+import App from "./App"
+import "./index.css"
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/IntelliCart/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d0f17" />
+    <title>IntelliCart · AI-first Commerce Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap"
+    />
+    <script type="module" crossorigin src="/IntelliCart/assets/admin-DQoJbHs8.js"></script>
+    <link rel="modulepreload" crossorigin href="/IntelliCart/assets/src-B6jqFI03.js">
+    <link rel="stylesheet" crossorigin href="/IntelliCart/assets/src-BSKMwqqU.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+--- stderr ---
+
+
+Use `read` on the stdout/stderr paths above for the full output.

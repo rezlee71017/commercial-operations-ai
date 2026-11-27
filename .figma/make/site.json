@@ -1,0 +1,10 @@
+{
+  "description": "Experience a premium ecommerce storefront and intelligent operations workspace, seamlessly connecting product discovery with smart business solutions for enhanced efficiency.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
