@@ -1,4 +1,4 @@
-import type { MerchantProduct, Proposal, Rules, Run, RunStatus, RuleCheck, PublicProduct } from "../types"
+import type { MerchantProduct, Proposal, Rules, Run, RunStatus, RuleCheck, PublicProduct, Compatibility } from "../types"
 
 export const photo = (id: string, width = 900) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=85`
 export const heroImage = photo("photo-1546435770-a3e426bf472b", 1200)
@@ -43,8 +43,41 @@ export const products: MerchantProduct[] = rows.map(r => ({
   id: r.id, name: r.name, brand: r.brand, category: r.category, kind: r.kind,
   priceCents: r.price, costCents: Math.round(r.price * 0.56), stock: r.stock,
   imageUrl: photo(r.image), specs: r.specs, strengths: r.strengths, limitation: r.limitation,
-  compatibleWith: r.compatible ?? [], complementaryWith: r.compatible ?? [], isSynthetic: true,
+  compatibleWith: r.compatible ?? [], complementaryWith: r.compatible ?? [], compatibility: Object.fromEntries([...rows.map(other => other.id), ...Array.from({ length: 80 }, (_, i) => `x${i + 1}`)].map(id => [id, r.compatible?.includes(id) ? "confirmed" as Compatibility : "unknown" as Compatibility])), isSynthetic: true,
 }))
+
+// Additional distinct synthetic demo models. These are separate SKUs/models, not stock units.
+const expansionSeeds = [
+  ["Audio & Sound","Headphones","SONORA","QuietForm H2","Hybrid ANC · 45 hours","No wired input","photo-1546435770-a3e426bf472b"],
+  ["Audio & Sound","Earbuds","NORD","Air Dot Pro","ANC · Bluetooth 5.4","No multipoint","photo-1606220945770-b5b6c2c55bf1"],
+  ["Mobile & Power","Chargers","VOLT","Nano 100 GaN","100 W · 3 USB-C ports","Power shared across ports","photo-1601972599720-36938d4ecd31"],
+  ["Mobile & Power","Power banks","ROAM","Reserve 10K Slim","10,000 mAh · 20 W","No wireless charging","photo-1609592424825-5c89b467a05b"],
+  ["Computing & Workspace","Keyboards","NORD","Keyframe 96","96-key · hot-swap","No wireless mode","photo-1541140532154-b024d705b90a"],
+  ["Computing & Workspace","Mice","VOLT","Glide Pro","8,000 DPI · USB-C","Right-handed shape","photo-1527864550417-7fd91fc51a46"],
+  ["Smart Home & Security","Smart cameras","HAVEN","Home Eye 4K","4K · 2.4 GHz Wi-Fi","No 5 GHz Wi-Fi","photo-1558002038-1055907df827"],
+  ["Smart Home & Security","Smart lighting","LUMA","Aura Strip 2m","RGB · Wi-Fi","Matter support unknown","photo-1550745165-9bc0b252726f"],
+  ["Automotive Gadgets","Dash cameras","ROVE","Road View 4K","4K · 150° view","Memory card sold separately","photo-1549317661-bd32c8ce0db2"],
+  ["Travel & Portable Tech","Portable routers","ROAM","Travel Wi-Fi 5G","5G · Wi-Fi 6","SIM/data plan required","photo-1544197150-b99a580bb7a8"],
+  ["Creator & Photography","Microphones","SONORA","Creator Mic XLR","XLR · cardioid","Audio interface required","photo-1590602847861-f357a9332bbc"],
+  ["Creator & Photography","Video lights","LUMA","Pocket Light Pro","2,700–6,500 K · USB-C","No weather sealing","photo-1502982720700-bfff97f2ecac"],
+]
+const expandedProducts: MerchantProduct[] = Array.from({ length: 80 }, (_, i) => {
+  const seed = expansionSeeds[i % expansionSeeds.length]
+  const [category, kind, brand, model, spec, limitation, imageId] = seed
+  const n = Math.floor(i / expansionSeeds.length) + 2
+  const price = 2400 + ((i * 1379) % 17800)
+  const stock = [0, 2, 5, 9, 14, 21][i % 6]
+  return {
+    id: `x${i + 1}`, name: `${model} ${n}`, brand: String(brand), category: String(category), kind: String(kind),
+    priceCents: price, costCents: Math.round(price * (0.48 + (i % 5) * 0.035)), stock,
+    imageUrl: photo(String(imageId)),
+    specs: { Model: `${model} ${n}`, Primary: String(spec), Connectivity: i % 2 ? "USB-C / Bluetooth (model dependent)" : "USB-C", Variant: `Synthetic variant ${n}` },
+    strengths: [`${kind} option in ${category}`, String(spec)], limitation: String(limitation),
+    compatibleWith: [], complementaryWith: [], compatibility: Object.fromEntries([...rows.map(r => r.id), ...Array.from({ length: 80 }, (_, j) => `x${j + 1}`)].map(id => [id, "unknown" as const])), isSynthetic: true,
+  }
+})
+products.push(...expandedProducts)
+
 export const featured = products.slice(0, 4)
 export const prompts = ["Headphones for work under $150", "Build my remote-work setup", "A portable creator kit"]
 export const defaultRules: Rules = { minMarginPct: 20, maxDiscountPct: 15 }

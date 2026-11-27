@@ -1,3 +1,4 @@
+export type Compatibility = "confirmed" | "unknown" | "conflict"
 export type PublicProduct = {
   id: string
   name: string
@@ -13,6 +14,7 @@ export type PublicProduct = {
   strengths: string[]
   limitation: string
   complementaryWith: string[]
+  compatibility: Record<string, Compatibility>
 }
 export type MerchantProduct = PublicProduct & {
   costCents: number
@@ -66,3 +68,14 @@ export type CartLine = {
   qty: number
   unitPriceCents: number
 }
+
+export type ChatRequest = { sessionId: string; message: string; context?: { productId?: string; cartIds?: string[] } }
+export type ChatResponse = { messageId: string; blocks: Block[]; usedProductIds: string[]; needsInput?: boolean }
+export type Block =
+  | { type: "text"; text: string }
+  | { type: "product_cards"; productIds: string[]; reasons: Record<string, string> }
+  | { type: "comparison_table"; productIds: string[] }
+  | { type: "clarifying_question"; question: string; answers: string[] }
+  | { type: "shopping_project"; title: string; productIds: string[]; budgetCents?: number }
+  | { type: "no_match"; text: string; alternativeIds: string[] }
+  | { type: "error"; text: string }

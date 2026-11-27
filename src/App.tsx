@@ -1,16 +1,21 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Storefront from "./components/store/Storefront"
 import Workspace from "./components/owner/Workspace"
 import { Modal, Button, Photo, Wordmark } from "./components/shared/UI"
-import { products as initialProducts, initialRuns, defaultRules, bundle, creatorBundle, checkProposal, money } from "./data/demo"
+import AIChat from "./components/store/AIChat"
+import { initialRuns, defaultRules, bundle, creatorBundle, checkProposal, money } from "./data/demo"
+import { getProducts } from "./data/api"
 import type { CartLine, MerchantProduct, Proposal, Rules, Run } from "./types"
 
 export default function App() {
   const [merchant, setMerchant] = useState(false)
+  const [aiMode, setAiMode] = useState(false)
+  const [darkTheme, setDarkTheme] = useState(false)
   const [gate, setGate] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
   const [cart, setCart] = useState<CartLine[]>([])
-  const [products, setProducts] = useState(initialProducts)
+  const [products, setProducts] = useState<MerchantProduct[]>([])
+  useEffect(() => { getProducts().then(setProducts) }, [])
   const [bundles, setBundles] = useState<Proposal[]>([bundle])
   const [runs, setRuns] = useState(initialRuns)
   const [rules, setRules] = useState<Rules>(defaultRules)
@@ -71,10 +76,12 @@ export default function App() {
     const now = new Date().toISOString()
     setRuns(rs => rs.map((r, i) => i ? r : { ...r, events: [...r.events, { step: "Catalog updated", status: "ok", message: `${id}: price ${money(priceCents)}, stock ${stock}. Shared storefront updated.`, at: now }] }))
   }
-  return <div className="min-h-screen overflow-x-hidden bg-[#f8f9fc] font-sans text-[#202235] selection:bg-violet-200 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-violet-500 [&_input:focus-visible]:outline-2 [&_input:focus-visible]:outline-violet-500 [&_select:focus-visible]:outline-2 [&_select:focus-visible]:outline-violet-500 [&_textarea:focus-visible]:outline-2 [&_textarea:focus-visible]:outline-violet-500">
+  if (!products.length) return <div className="grid min-h-screen place-items-center bg-[#023530] text-[#f5f0e6]"><div className="text-center"><Wordmark /><p className="mt-4 text-sm">Loading synthetic catalog…</p></div></div>
+  if (!merchant && aiMode) return <AIChat products={products} cartCount={cart.reduce((s,l)=>s+l.qty,0)} onAddToCart={add} onCompare={()=>{}} onView={()=>setAiMode(false)} onShop={()=>setAiMode(false)} />
+  return <div data-theme={darkTheme ? "dark" : "light"} className="min-h-screen overflow-x-hidden bg-[#f5f0e6] font-sans text-[#12332e] selection:bg-orange-200 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-orange-500 [&_input:focus-visible]:outline-2 [&_input:focus-visible]:outline-orange-500 [&_select:focus-visible]:outline-2 [&_select:focus-visible]:outline-orange-500 [&_textarea:focus-visible]:outline-2 [&_textarea:focus-visible]:outline-orange-500">
     {merchant ? <Workspace products={products} runs={runs} rules={rules} bundles={bundles} onEditProduct={editProduct} onEditProposal={updateRun} onSaveRules={r => { setRules(r); setRuns(rs => rs.map((run, i) => i ? run : { ...run, events: [...run.events, { step: "Policy updated", status: "ok", message: `Minimum margin ${r.minMarginPct}%, maximum discount ${r.maxDiscountPct}%`, at: new Date().toISOString() }] })) }} onSubmitRequest={submit} onApprove={(id, note) => decide(id, "approve", note)} onReject={(id, note) => decide(id, "reject", note)} onRetry={id => decide(id, "retry")} onExit={() => setMerchant(false)} /> :
-      <Storefront products={products} bundles={bundles} cartCount={cart.reduce((s, l) => s + l.qty, 0)} onAddToCart={add} onAddBundle={addBundle} onOpenCart={() => { setNotice(""); setCartOpen(true) }} onSignIn={() => setGate(true)} />}
-    {gate && <Modal title="Commerce, from the other side." onClose={() => setGate(false)}><Wordmark /><p className="my-6 leading-7 text-slate-600">One catalog. One intelligence layer. Enter the REZLEE merchant workspace to review opportunities, edit products, and publish bundles back to this store.</p><p className="mb-6 rounded-xl bg-violet-50 p-4 text-sm text-violet-900">Demo access only—not authentication. All changes stay in memory and reset on reload.</p><Button onClick={() => { setGate(false); setMerchant(true); window.scrollTo({ top: 0 }) }}>Enter demo workspace →</Button></Modal>}
+      <Storefront products={products} bundles={bundles} cartCount={cart.reduce((s, l) => s + l.qty, 0)} onAddToCart={add} onAddBundle={addBundle} onOpenCart={() => { setNotice(""); setCartOpen(true) }} onSignIn={() => setGate(true)} onOpenAI={() => setAiMode(true)} darkTheme={darkTheme} onToggleTheme={() => setDarkTheme(v=>!v)} />}
+    {gate && <Modal title="Commerce, from the other side." onClose={() => setGate(false)}><Wordmark /><p className="my-6 leading-7 text-slate-600">One catalog. One intelligence layer. Enter the REZLEE merchant workspace to review opportunities, edit products, and publish bundles back to this store.</p><p className="mb-6 rounded-xl bg-orange-50 p-4 text-sm text-orange-900">Demo access only—not authentication. All changes stay in memory and reset on reload.</p><Button onClick={() => { setGate(false); setMerchant(true); window.scrollTo({ top: 0 }) }}>Enter demo workspace →</Button></Modal>}
     {cartOpen && <Modal title="Your shopping bag" onClose={() => setCartOpen(false)}>
       <p className="mb-5 text-sm text-slate-600">Purchasing preparation only. No payment or order will be placed.</p>
       {!cart.length && <p className="py-12">Your bag is empty. Start with a need, and find your fit.</p>}
@@ -83,7 +90,7 @@ export default function App() {
         return <div key={idx} className="flex items-center justify-between gap-3 border-b border-slate-200 py-4"><Photo src={p.imageUrl} alt={p.name} className="h-16 w-16 shrink-0 rounded-lg" /><div className="min-w-0 flex-1"><p className="text-sm font-medium">{p.name}</p><p className="mt-1 text-sm text-slate-600">{l.qty} × {money(l.unitPriceCents)}</p>{p.stock < cart.filter(i => i.productId === p.id).reduce((s, i) => s + i.qty, 0) && <p className="text-sm text-red-800">Stock changed. Remove and re-add this item.</p>}</div><button className="min-h-11 text-sm underline" onClick={() => setCart(c => c.filter((_, i) => i !== idx))}>Remove</button></div>
       })}
       <div className="my-6 flex justify-between text-xl"><span>Total</span><strong>{money(cart.reduce((s, l) => s + l.qty * l.unitPriceCents, 0))}</strong></div>
-      <Button disabled={!cart.length} onClick={() => setNotice("Demo only. No payment provider, real order, or reservation is connected.")}>Prepare demo checkout →</Button>{notice && <p role="status" className="mt-4 rounded-xl bg-violet-50 p-4 text-sm">{notice}</p>}
+      <Button disabled={!cart.length} onClick={() => setNotice("Demo only. No payment provider, real order, or reservation is connected.")}>Prepare demo checkout →</Button>{notice && <p role="status" className="mt-4 rounded-xl bg-orange-50 p-4 text-sm">{notice}</p>}
     </Modal>}
   </div>
 }

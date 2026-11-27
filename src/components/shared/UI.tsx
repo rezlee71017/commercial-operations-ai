@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes 
 import Icon from "./Icon"
 
 export function Button({ children, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={`inline-flex min-h-11 items-center justify-center gap-3 rounded-xl bg-[#6550df] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-600 motion-reduce:transition-none ${className}`}>{children}</button>
+  return <button {...props} className={`inline-flex min-h-11 items-center justify-center gap-3 rounded-xl bg-[#e85706] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-600 motion-reduce:transition-none ${className}`}>{children}</button>
 }
 export function Photo({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
   const [failed, setFailed] = useState(false)
@@ -31,7 +31,7 @@ export function Modal({ title, children, onClose }: { title: string; children: R
     return () => { document.removeEventListener("keydown", key); document.body.style.overflow = overflow; before?.focus() }
   }, [])
   return <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={e => e.stopPropagation()} className="max-h-[90dvh] w-full max-w-4xl overflow-auto rounded-2xl bg-[#f8f9fc] p-6 text-[#191c2b] shadow-2xl md:p-9">
+    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={e => e.stopPropagation()} className="max-h-[90dvh] w-full max-w-4xl overflow-auto rounded-2xl bg-[#f5f0e6] p-6 text-[#191c2b] shadow-2xl md:p-9">
       <div className="mb-5 flex items-start justify-between gap-5"><h2 id="dialog-title" className="text-3xl font-medium tracking-tight">{title}</h2><button aria-label="Close dialog" className="grid min-h-11 min-w-11 place-items-center rounded-full border border-black/20 focus-visible:ring-2" onClick={onClose}><Icon name="close" /></button></div>{children}
     </div>
   </div>
@@ -40,5 +40,7 @@ export function Badge() {
   return <span className="inline-flex rounded-full border border-current/25 px-3 py-1 text-xs">Demo data · Simulated intelligence</span>
 }
 export function Wordmark() {
-  return <span className="inline-flex items-center gap-2.5 font-display text-2xl font-bold tracking-[-.06em]"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#6550df] text-white"><svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="M5 6h10l-6 6h10M5 18h10l-6-6"/></svg></span>REZLEE<span className="self-start text-xs text-violet-600">®</span></span>
+  return <span className="inline-flex items-center overflow-hidden rounded-xl bg-[#023530] p-1.5">
+    <img src="/brand/rezalee.svg" alt="ReZalee!" className="h-10 w-auto max-w-[190px] object-contain" />
+  </span>
 }
