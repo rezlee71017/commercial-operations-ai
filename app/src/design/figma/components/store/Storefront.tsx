@@ -144,7 +144,7 @@ export default function Storefront({
             </h1>
             <p>
               Describe what you need, your budget, and how you’ll use it.
-              Aperture compares real catalog price, stock, and confirmed
+              REZLEE compares real catalog price, stock, and confirmed
               compatibility.
             </p>
             <form
