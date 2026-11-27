@@ -1,6 +1,6 @@
-import { useRef, useState } from "react"
+import { useState } from "react"
 import type { Proposal, PublicProduct } from "../../types"
-import { heroImage, money, categories, prompts, simulateAssistant } from "../../data/demo"
+import { heroImage, money, categories } from "../../data/demo"
 import { Badge, Button, Photo, Wordmark } from "../shared/UI"
 import Icon from "../shared/Icon"
 import BundleSection from "../bundle/BundleSection"
@@ -15,10 +15,16 @@ type Props = {
   onAddBundle: (proposal: Proposal) => void
   onOpenCart: () => void
   onSignIn: () => void
-  onOpenAI: () => void
+  onOpenAI: (initialMessage?: string) => void
   darkTheme: boolean
   onToggleTheme: () => void
 }
+const ADVISOR_PROMPTS = [
+  "Find headphones for commuting",
+  "Build a portable work setup",
+  "Find a phone within my budget",
+]
+
 export function ProductCard({ product: p, onAddToCart, onCompare, onOpen, selected = false, reason }: {
   product: PublicProduct
   onAddToCart: (id: string) => void
@@ -53,25 +59,13 @@ export default function Storefront({ products, bundles, cartCount, onAddToCart, 
   const [selected, setSelected] = useState<string[]>([])
   const [compareOpen, setCompareOpen] = useState(false)
   const [request, setRequest] = useState("")
-  const [lastRequest, setLastRequest] = useState("")
-  const [failure, setFailure] = useState(false)
-  const [result, setResult] = useState<ReturnType<typeof simulateAssistant> | null>(null)
-  const [error, setError] = useState(false)
   const [selectionNote, setSelectionNote] = useState("")
-  const resultsRef = useRef<HTMLDivElement>(null)
   const compare = (id: string) => {
     const p = products.find(p => p.id === id)!
     if (selected.includes(id)) { setSelected(s => s.filter(i => i !== id)); return }
     if (selected.length && products.find(p => p.id === selected[0])?.kind !== p.kind) { setSelectionNote("Compare products of the same type. Clear your selection to compare another type."); return }
     if (selected.length === 4) { setSelectionNote("You can compare up to four products at a time."); return }
     setSelectionNote(""); setSelected(s => [...s, id])
-  }
-  const ask = (text: string, retry = false) => {
-    if (!text.trim()) return
-    const combined = /^(under|below|budget|cheaper|\$|with |what |does |is )/i.test(text) && lastRequest ? `${lastRequest}. ${text}` : text
-    setView("Discover"); setLastRequest(combined); setRequest(""); setError(failure && !retry)
-    setResult(failure && !retry ? null : simulateAssistant(combined, products))
-    window.setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "instant", block: "start" }), 50)
   }
   const filtered = products.filter(p => (category === "All" || p.category === category) && (brand === "All" || p.brand === brand) && `${p.name} ${p.brand} ${p.kind} ${p.category}`.toLowerCase().includes(query.toLowerCase()) && p.priceCents <= maxPrice * 100 && (!stockOnly || p.stock > 0))
   const card = (p: PublicProduct, reason = false) => <ProductCard key={p.id} product={p} selected={selected.includes(p.id)} onAddToCart={onAddToCart} onCompare={compare} onOpen={setDetail} reason={reason} />
@@ -92,12 +86,12 @@ export default function Storefront({ products, bundles, cartCount, onAddToCart, 
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[.13em] text-[#31534b]"><span className="h-2 w-2 rounded-full bg-[#6c54d4]" />Your needs. Connected to the right tech.</div>
             <h1 className="mb-5 mt-7 font-display text-[45px] font-medium leading-[1.07] tracking-[-.06em] md:text-[66px]">Less searching.<br />More <span className="text-[#e85706]">knowing.</span></h1>
             <p className="max-w-md text-base leading-7 text-[#52665f]">Meet your next upgrade with clarity. Discover, compare, and connect the tech that actually fits your life.</p>
-            <form onSubmit={e => { e.preventDefault(); ask(request) }} className="mt-8 rounded-2xl border border-[#b9cbc0] bg-white p-3 shadow-xl shadow-[#bbb1e0]/15">
+            <form onSubmit={e => { e.preventDefault(); onOpenAI(request.trim()); setRequest("") }} className="mt-8 rounded-2xl border border-[#b9cbc0] bg-white p-3 shadow-xl shadow-[#bbb1e0]/15">
               <label htmlFor="shopping-request" className="flex items-center gap-2 px-2 text-xs font-medium text-[#31534b]"><Icon name="spark" size={16} /> REZLEE ADVISOR</label>
               <textarea id="shopping-request" aria-label="Shopping requirements" value={request} onChange={e => setRequest(e.target.value)} placeholder="Tell us what you need, not just a product name…" className="mt-2 min-h-16 w-full resize-none bg-transparent px-2 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-orange-500" />
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="px-2 text-xs text-slate-600">Your budget. Your priorities. Clear answers.</span><Button disabled={!request.trim()} className="min-w-11 px-3" aria-label="Find my match"><Icon name="arrow" size={18} /></Button></div>
             </form>
-            <div className="mt-4 flex flex-wrap gap-2">{prompts.map((p, i) => <button key={p} onClick={() => ask(p)} className="min-h-11 rounded-lg border border-[#c7d6cd] px-3 text-xs text-[#31534b]">{["◉", "⌘", "▣"][i]} {p} ↗</button>)}</div>
+            <div className="mt-4 flex flex-wrap gap-2">{ADVISOR_PROMPTS.map((p, i) => <button key={p} onClick={() => { onOpenAI(p); setRequest("") }} className="min-h-11 rounded-lg border border-[#c7d6cd] px-3 text-xs text-[#31534b]">{["◉", "⌘", "▣"][i]} {p} ↗</button>)}</div>
           </div>
           <div className="relative isolate min-h-[410px] overflow-hidden rounded-[24px] bg-[#20252a] text-white">
             <Photo src={heroImage} alt="Over-ear headphones, representative of the REZLEE audio collection" className="absolute inset-0 -z-20 h-full w-full" />
@@ -112,19 +106,6 @@ export default function Storefront({ products, bundles, cartCount, onAddToCart, 
           ["inventory", "Better together", "Build a setup, not just a basket."],
           ["spark", "Intelligence with evidence", "Demo specs. Transparent reasoning."],
         ].map(([icon, title, text]) => <div key={title} className="flex gap-3"><span className="mt-1 text-[#e85706]"><Icon name={icon as "compare"} size={21} /></span><div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{text}</p></div></div>)}</div>
-        <div ref={resultsRef} className="scroll-mt-6">
-          {(result || error) && <section className="mb-10 rounded-2xl border border-[#d9d1ef] bg-[#f0edf9] p-5 md:p-7">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-orange-800">Decision workspace · Simulated advisor</p><h2 className="mt-2 text-2xl font-medium tracking-tight">{lastRequest}</h2></div><button className="min-h-11 text-sm underline" onClick={() => { setResult(null); setError(false); setLastRequest("") }}>Start fresh</button></div>
-            {error ? <div role="alert"><p className="mb-4">The simulated provider failed. Nothing was lost.</p><Button onClick={() => ask(lastRequest, true)}>Retry request</Button></div> : result?.clarification ? <><p>What kind of technology are you looking for?</p><div className="mt-4 flex flex-wrap gap-2">{prompts.map(p => <Button key={p} onClick={() => ask(p)}>{p}</Button>)}</div></> : result && <>
-              <div className="mb-5 flex flex-wrap gap-3 text-sm text-[#514675]"><span className="rounded-full bg-white px-3 py-2">✓ Availability checked</span><span className="rounded-full bg-white px-3 py-2">{result.budget ? `Budget ≤ ${money(result.budget)}` : "No budget specified"}</span><span className="rounded-full bg-white px-3 py-2">{result.kind || result.category || "All technology"}</span></div>
-              {!result.results.length && <p className="mb-4">No exact match. These in-stock alternatives may exceed your budget.</p>}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">{(result.results.length ? result.results : result.alternatives).map(p => card(p, true))}</div>
-              <p className="mt-5 text-sm leading-6 text-slate-600">Recommendations use price, stock, product type, and declared demo specifications—not reviews or inferred performance. {result.results[0] ? `Trade-off for ${result.results[0].name}: ${result.results[0].limitation}.` : "Try increasing your budget."}</p>
-              <form onSubmit={e => { e.preventDefault(); ask(request) }} className="mt-4 flex gap-2"><input aria-label="Refine recommendations" value={request} onChange={e => setRequest(e.target.value)} placeholder="Refine: under $100, with ANC…" className="min-h-12 min-w-0 flex-1 rounded-xl border border-orange-200 bg-white px-4 text-sm" /><Button disabled={!request.trim()}>Refine →</Button></form>
-            </>}
-            <label className="mt-4 flex min-h-11 items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={failure} onChange={e => setFailure(e.target.checked)} />Simulate next provider failure</label>
-          </section>}
-        </div>
         <section className="pb-10">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-2 text-xs font-medium uppercase tracking-[.17em] text-[#6e58b5]">Explore with intention</p><h2 className="font-display text-3xl font-medium tracking-tight">Your world. Better connected.</h2></div><button onClick={() => navigate("Explore")} className="flex min-h-11 items-center gap-2 text-sm">Explore all categories <Icon name="arrow" size={17} /></button></div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">{categories.map((c, i) => {
