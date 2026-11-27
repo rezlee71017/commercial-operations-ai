@@ -1,4 +1,4 @@
-export type View = "store" | "bundle" | "ops" | "owner"
+export type View = "store" | "bundle" | "ai" | "ops" | "owner"
 
 export type PublicProduct = {
   id: string

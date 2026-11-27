@@ -109,6 +109,7 @@ export default function Storefront({
             Shop
           </button>
           <button onClick={() => onNavigate("bundle")}>Smart bundles</button>
+          <button onClick={() => onNavigate("ai")}>AI Mode</button>
         </nav>
         <div className="header-actions">
           <DemoBadge />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import BundleView from "./components/bundle/BundleView"
+import AIChat from "./components/store/AIChat"
 import CartDrawer from "./components/shared/CartDrawer"
 import Brand from "./components/shared/Brand"
 import Icon from "./components/shared/Icon"
@@ -128,6 +129,15 @@ export default function App() {
           onCompare={() => undefined}
           onOpenCart={() => setCartOpen(true)}
           onSignIn={() => setSignInOpen(true)}
+        />
+      )}
+      {view === "ai" && (
+        <AIChat
+          products={products}
+          cartCount={cartCount}
+          onNavigate={navigate}
+          onAddToCart={addToCart}
+          onOpenCart={() => setCartOpen(true)}
         />
       )}
       {view === "bundle" && (

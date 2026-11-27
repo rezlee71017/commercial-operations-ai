@@ -72,6 +72,7 @@ export default function BundleView({
         <nav>
           <button onClick={() => onNavigate("store")}>Shop</button>
           <button className="active">Smart bundles</button>
+          <button onClick={() => onNavigate("ai")}>AI Mode</button>
         </nav>
         <div className="header-actions">
           <DemoBadge />
