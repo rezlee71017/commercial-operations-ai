@@ -14,6 +14,7 @@ Rules that hold for every endpoint
 | Endpoint | What it does |
 |---|---|
 | `GET /api/products` | `{ products: PublicProduct[], categories: {id,name}[] }`, no cost, no margin |
+| `POST /api/assistant` | body `{ message, history?: [{role: "user"\|"assistant", content}], budgetDollars? }` returns `{ status: "answered"\|"step_limit"\|"failed", answer }`. Forwards to the Python AI service (`AI_SERVICE_URL`), which is read-only and uses the public catalog. 12 requests per minute per client. Errors: 400, 429, 502, 503, 504 with `{ error, code }` |
 | `POST /api/run` | body `{ request, owned?: string[], previousRunId?: string }`. Streams NDJSON messages `run`, `event`, `result`, `error`. For customers the stream is redacted (no cost, no margin numbers). Operators with a valid token get the full run |
 
 ### Follow-ups (conversation = a chain of runs)
