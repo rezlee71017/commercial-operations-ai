@@ -86,6 +86,8 @@ npm run dev                          # http://localhost:3000
 npm test                             # 136 tests
 ```
 
+From the repo root the same commands are available as `npm run dev`, `build`, `lint`, `test` and `typecheck` (they delegate to `app/`); run `npm run install:app` once first. The canonical UI lives in `app/src/design/figma`; older exports are under `archive/` (see `archive/MANIFEST.md`).
+
 With real providers, put keys in `app/.env.local` (never commit them) and check them:
 
 ```bash
