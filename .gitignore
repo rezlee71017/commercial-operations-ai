@@ -19,3 +19,7 @@ ai-service/.env
 .data/
 *.bundle
 /commercial-operations-ai/
+
+# local archives and bundles
+/*.zip
+*.bundle
