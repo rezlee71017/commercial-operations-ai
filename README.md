@@ -66,7 +66,7 @@ the Python agent is read-only and enforces a customer's budget inside its tools.
 
 | Path | What is there |
 |---|---|
-| `app/` | Next.js web app: `src/core` (policy, agent, providers), `src/db` (Drizzle, execution), `src/app/api` (routes), `src/design/rezalee` (website export) |
+| `app/` | Next.js web app: `src/core` (policy, agent, providers), `src/db` (Drizzle, execution), `src/app/api` (routes), `src/design/rezalee` (REZLEE UI) |
 | `ai-service/` | Python service (FastAPI, Pydantic, LangGraph): see its README |
 | `docs/` | API reference, decision records, Figma integration and Figma Make prompts, Supabase notes |
 | `eval/` | Recorded agent evaluation results |

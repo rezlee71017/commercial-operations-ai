@@ -14,3 +14,6 @@ Three UI lines existed: the earlier Figma export (`design/figma`, branch `feat/r
 ## Not done yet
 - The AI Mode uses a deterministic matcher; `/api/assistant` returns plain text and does not yet fill the chat blocks.
 - No authentication, database or payments are connected to this UI.
+- `costCents` (purchase cost) is part of the demo product type and is therefore present in the client bundle. Before real data is connected, the storefront must receive a public product type without cost or margin (rule in `docs/figma-integration.md`).
+- The AI request sent to `NEXT_PUBLIC_AI_ENDPOINT` already omits cost; keep it that way.
+- `legacy` dashboards (`/workflow`, `/inventory`, `/orders`) still hold the only screens wired to the real API and are deleted screen by screen as new screens replace them.
