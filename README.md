@@ -66,7 +66,7 @@ the Python agent is read-only and enforces a customer's budget inside its tools.
 
 | Path | What is there |
 |---|---|
-| `app/` | Next.js web app: `src/core` (policy, agent, providers), `src/db` (Drizzle, execution), `src/app/api` (routes), `src/design/figma` (website export) |
+| `app/` | Next.js web app: `src/core` (policy, agent, providers), `src/db` (Drizzle, execution), `src/app/api` (routes), `src/design/rezalee` (REZLEE UI) |
 | `ai-service/` | Python service (FastAPI, Pydantic, LangGraph): see its README |
 | `docs/` | API reference, decision records, Figma integration and Figma Make prompts, Supabase notes |
 | `eval/` | Recorded agent evaluation results |
@@ -85,6 +85,8 @@ npm run db:setup                     # local database in app/.data
 npm run dev                          # http://localhost:3000
 npm test                             # 136 tests
 ```
+
+From the repo root the same commands are available as `npm run dev`, `build`, `lint`, `test` and `typecheck` (they delegate to `app/`); run `npm run install:app` once first. The canonical UI lives in `app/src/design/rezalee`; older exports are under `archive/` (see `archive/MANIFEST.md`).
 
 With real providers, put keys in `app/.env.local` (never commit them) and check them:
 

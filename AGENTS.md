@@ -7,7 +7,7 @@ Status of features lives in README.md. Do not claim a feature works unless it is
 - Tests: `cd app && npm test` (Vitest). Run them before saying a task is done.
 - Core logic: `app/src/core/`. Database and execution: `app/src/db/`. Demo data: `app/src/data/`.
 - Python AI service: `ai-service/` (FastAPI, Pydantic, LangGraph). Tests: `cd ai-service && python -m pytest`.
-- UI: the Figma Make export in `app/src/design/figma/` (see `docs/figma-integration.md`). Our own adapters and API clients live outside that folder.
+- UI: the REZLEE UI in `app/src/design/rezalee/` (see `docs/figma-integration.md`, decision 0007). Our own adapters and API clients live outside that folder.
 
 ## Non-negotiable rules
 1. Prices, stock levels, margins and totals come from the catalog or deterministic code, never from the LLM.

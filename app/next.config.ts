@@ -1,10 +1,12 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
-  turbopack: {},
+  // The repo has two lockfiles (root scripts + app); pin the workspace root so Next does not guess
+  turbopack: { root: path.resolve(__dirname, "..") },
 
   // The embedded database must be loaded by Node, not bundled
   serverExternalPackages: ["@electric-sql/pglite"],

@@ -1,24 +1,30 @@
 # Figma site integration
 
-**Rule: Figma owns the look.** The site design is the Figma Make export in `app/src/design/figma/`.
-Do not restyle it by hand. If the look must change, change it in Figma Make and re-export.
+**Rule: Figma owns the look.** The site design is the Figma Make line of work in `app/src/design/rezalee/` (the REZLEE UI, see decision 0007).
+Larger look changes are designed in Figma / Figma Make and brought back as code; small fixes may be made in code and are listed below.
 Our code (API, database, AI, adapters) lives outside `src/design/`.
 
 ## Layout of the app
-- `app/src/app/(figma)/` : root layout and `/` page that mount the Figma site (own `<html>` and CSS).
+- `app/src/app/(figma)/` : root layout and `/` page that mount the REZLEE site (own `<html>` and CSS).
 - `app/src/app/(legacy)/` : the old template dashboard (`/workflow`, `/inventory`, `/orders`). Temporary: delete each page when a Figma screen replaces it.
-- `app/src/design/figma/` : the export. `FigmaApp.tsx` (from `App.tsx`), `components/{shared,store,bundle,ops,owner}`, `data/demo.ts` (all demo data), `types.ts` (named types that mirror the API), `figma.css` (from `index.css`).
+- `app/src/design/rezalee/` : the UI. `RezaleeApp.tsx` (from `App.tsx`), `components/{shared,store,bundle,ops,owner}`, `data/` (`demo.ts` synthetic 100-product catalog, `api.ts` async data access, `chatAdapter.ts` deterministic matcher, `events.ts`), `types.ts`, `rezalee.css` (from `index.css`).
 - `app/src/app/api/` : backend routes (unchanged by the design).
 
 ## Re-exporting from Figma Make (checklist)
-1. Copy `src/App.tsx` to `FigmaApp.tsx` and put `"use client"` plus a blank line at the top.
-2. Copy `src/components`, `src/data`, `src/types.ts`, and `src/index.css` (as `figma.css`) over the same paths.
-   Do NOT copy `supabase/`, `utils/`, `.figma/`, `index.html`, `main.tsx` or the Vite config.
+1. Copy `src/App.tsx` to `RezaleeApp.tsx` (rename the component) and put `"use client"` plus a blank line at the top.
+2. Copy `src/components`, `src/data`, `src/types.ts`, and `src/index.css` (as `rezalee.css`) over the same paths.
+   Do NOT copy `supabase/`, `utils/`, `.figma/`, `index.html`, `main.tsx`, the Vite config or `.gitattributes` (it sends images, zips and fonts to Git LFS).
 3. Figma's formatter removes `;` inside one-line type literals, which breaks TypeScript. Keep every type multi-line.
 4. Re-apply the CSS fixes below if the new export brings the problems back.
 5. Run `cd app && npx tsc --noEmit && npm test`.
 
-## Code fixes made on top of the export (2026-11-19)
+## Code fixes made on top of the export
+### REZLEE UI port (2026-11-28)
+- Ported from the Vite preview (`snapshot/rezalee-preview`) into Next: `"use client"` entry, `NEXT_PUBLIC_AI_ENDPOINT` instead of `import.meta`, categories count derived from data instead of the stale text "seven".
+- Lint: state resets moved from effects to render-time updates (`BundleSection`, `RunDetail`, `Photo`), and the `Modal` callback ref is updated in an effect.
+- Fonts: still loaded with a CSS `@import` from Google Fonts (follow-up: self-host).
+
+### Earlier fixes (2026-11-19, previous UI, kept for reference)
 - Text was tiny (61 of 105 font-size rules were 10px or smaller; status badges used 7px). All sizes below 12px were raised to 12px, 12px to 13px and 13px to 14px.
 - Status badges stretched to the height of their row; they now keep their own size (rule at the end of `figma.css`).
 - On phones the "Sign in" button was hidden together with the demo badge, so the merchant area was unreachable; it is visible again.

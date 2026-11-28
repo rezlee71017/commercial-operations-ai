@@ -103,6 +103,7 @@ export default function Icon({
   return (
     <svg
       aria-hidden="true"
+      className="shrink-0"
       width={size}
       height={size}
       viewBox="0 0 24 24"
