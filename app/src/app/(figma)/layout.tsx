@@ -1,13 +1,14 @@
 import type { Metadata } from "next"
-import "@/design/figma/figma.css"
+import "@/design/rezalee/rezalee.css"
 
 export const metadata: Metadata = {
-  title: "Commercial Operations AI",
-  description: "AI-assisted commerce: smart shopping, bundles and human-approved operations",
+  title: "REZLEE: shopping intelligence and commercial operations",
+  description: "AI-assisted product discovery, comparison, bundles and human-approved merchant operations",
+  icons: { icon: "/rezalee-favicon.svg" },
 }
 
-// Separate root layout: the Figma site owns its own <html> and CSS, so nothing leaks from the old template.
-export default function FigmaLayout({ children }: { children: React.ReactNode }) {
+// Separate root layout: the storefront owns its own <html> and CSS, so nothing leaks from the legacy dashboards.
+export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>{children}</body>

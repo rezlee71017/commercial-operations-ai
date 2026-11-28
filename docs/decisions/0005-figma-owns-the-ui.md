@@ -1,10 +1,10 @@
 # 0005: The Figma design is the website
 
-Status: accepted (2026-10-22). Supersedes 0002.
+Status: accepted (2026-10-22). Supersedes 0002. UI path updated by 0007.
 
 ## Decision
 The website is designed in Figma Make and exported as React code. That export
-(`app/src/design/figma`) is the only UI. The shadcn dashboard template from 0002 is retired:
+(`app/src/design/figma`, now `app/src/design/rezalee`, see 0007) is the only UI. The shadcn dashboard template from 0002 is retired:
 its pages stay under `app/src/app/(legacy)` only until a Figma screen replaces each one, then they are deleted.
 
 ## How it is integrated
