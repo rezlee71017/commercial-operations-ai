@@ -13,7 +13,7 @@ Built as a university project (AI course and software analysis and design course
 ## Status
 
 A feature is marked done only when it is implemented **and** tested. Test counts are from the last run on this branch:
-web app 136 tests (Vitest), Python service 34 tests (pytest). All tests use mocks; no live provider call is part of the test suite.
+web app 140 tests (Vitest), Python service 34 tests (pytest). All tests use mocks; no live provider call is part of the test suite.
 
 | Area | Status |
 |---|---|
@@ -28,7 +28,7 @@ web app 136 tests (Vitest), Python service 34 tests (pytest). All tests use mock
 | Python AI service: providers, router, read-only LangGraph shopping agent, FastAPI | Done, tested with mocks |
 | `POST /api/assistant`: web app to Python service to catalog tools (rate limited, token protected) | Done. Tested with mocks and once end to end locally with a scripted model. **Not yet run with a live model through the Python service** |
 | Agent evaluation harness (`npm run eval:agent`) | Done. Recorded runs: best 9 pass and 4 inconclusive, latest 3 pass and 9 inconclusive (free-tier limits). Inconclusive is never counted as a pass; reliability is **not** proven yet |
-| Website mounted at `/` (store, bundles, merchant overview, copilot, approvals, rules) | **Temporary mockup, being replaced**: electronics demo data, canned assistant answers (the input text is ignored), no backend calls. A new Figma Make design is being made (`docs/figma/figma-make-prompts.md`) |
+| Website mounted at `/` (REZLEE UI: store, AI Mode chat, bundles, compare, merchant overview) | **Front-end demo, not connected to the backend**: synthetic catalog in `app/src/design/rezalee/data/demo.ts`, deterministic catalog matching in the chat (no live AI), no calls to the API routes. An optional `NEXT_PUBLIC_AI_ENDPOINT` hook exists in `chatAdapter.ts` but is not used by default |
 | Supabase hosted database | Code path exists (`DATABASE_URL`); not connected to a real project |
 | Merchant and customer authentication, carts, checkout | Planned |
 | RAG (documents, policies), Ragas evaluation, comparison and compatibility features in the agent | Planned |
@@ -37,7 +37,7 @@ web app 136 tests (Vitest), Python service 34 tests (pytest). All tests use mock
 
 ```mermaid
 flowchart LR
-  UI[Figma Make website] -.->|not connected yet| API
+  UI[REZLEE website with local demo data] -.->|not connected yet| API
   subgraph Web[Next.js app]
     API[API routes] --> RUN[Workflow runner]
     RUN --> AGENT[TS tool-using agent]
@@ -83,7 +83,7 @@ npm ci
 cp ../.env.example .env.local        # then set LLM_MODE=mock to run without keys
 npm run db:setup                     # local database in app/.data
 npm run dev                          # http://localhost:3000
-npm test                             # 136 tests
+npm test                             # 140 tests
 ```
 
 From the repo root the same commands are available as `npm run dev`, `build`, `lint`, `test` and `typecheck` (they delegate to `app/`); run `npm run install:app` once first. The canonical UI lives in `app/src/design/rezalee`; older exports are under `archive/` (see `archive/MANIFEST.md`).
@@ -131,8 +131,8 @@ The baseline and the B/C comparison are not built yet.
 
 ## Roadmap
 
-1. Connect the Figma website to the existing API (products first, then the run stream and approvals).
-2. Replace the temporary website with a new Figma Make design (editorial, photo-led storefront plus merchant workspace) using `docs/figma/figma-make-prompts.md`.
+1. Define the API contract (typed endpoints and schemas) shared by the website, the Python service and the database.
+2. Connect the REZLEE website to the API (products first, then the chat, the run stream and approvals); the server owns catalog, price and stock.
 3. Run the Python service with a live model (Gemini, then OpenRouter) and measure it with an evaluation set.
 4. Authentication (merchant login first), then Supabase for real.
 5. Comparison, compatibility and bundle tools in the Python agent; RAG with pgvector; Ragas evaluation.
